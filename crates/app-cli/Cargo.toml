@@ -9,7 +9,9 @@ publish.workspace = true
 clap.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+leptos.workspace = true
 tauri-leptos-core.workspace = true
+tauri-leptos-ui = { path = "../ui", features = ["ssr"] }
 
 [lints]
 workspace = true

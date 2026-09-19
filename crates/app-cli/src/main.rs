@@ -63,10 +63,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         } => {
             let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
             paths.ensure_dirs()?;
+            // cargo-leptos supplies the config at compile time; --listen wins.
+            let mut leptos_options = leptos::config::get_configuration(None)?.leptos_options;
+            leptos_options.site_addr = listen;
+            let app = tauri_leptos_ui::server::router(leptos_options);
             let srv = server::Server::bind(listen)?;
             tracing::info!(addr = %srv.local_addr()?, "serving");
             tracing::debug!(?paths, "resolved app paths");
-            srv.serve(server::shutdown_signal()).await?;
+            srv.serve(app, server::shutdown_signal()).await?;
         }
     }
     Ok(())

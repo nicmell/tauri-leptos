@@ -19,7 +19,9 @@ tauri-build.workspace = true
 [dependencies]
 tauri.workspace = true
 tracing.workspace = true
+leptos.workspace = true
 tauri-leptos-core.workspace = true
+tauri-leptos-ui = { path = "../crates/ui", features = ["ssr"] }
 
 [lints]
 workspace = true

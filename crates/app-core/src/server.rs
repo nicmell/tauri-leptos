@@ -38,17 +38,15 @@ impl Server {
         self.listener.local_addr()
     }
 
-    /// Serve until `shutdown` resolves, then finish in-flight requests.
+    /// Serve `app` until `shutdown` resolves, then finish in-flight requests.
     pub async fn serve(
         self,
+        app: axum::Router,
         shutdown: impl Future<Output = ()> + Send + 'static,
     ) -> io::Result<()> {
-        if Dist::get("index.html").is_none() {
-            tracing::warn!("no frontend bundle embedded; run `trunk build` and rebuild");
-        }
         self.listener.set_nonblocking(true)?;
         let listener = tokio::net::TcpListener::from_std(self.listener)?;
-        axum::serve(listener, router())
+        axum::serve(listener, app)
             .with_graceful_shutdown(shutdown)
             .await
     }
@@ -77,11 +75,16 @@ pub async fn shutdown_signal() {
     tracing::info!("shutdown signal received");
 }
 
-pub fn router() -> axum::Router {
+/// The API surface alone (no static assets) — merged into the SSR
+/// router by the ui crate.
+pub fn api_router() -> axum::Router {
     axum::Router::new()
         .route("/api/hello", get(hello))
         .route("/ws", get(ws_upgrade))
-        .fallback(static_handler)
+}
+
+pub fn router() -> axum::Router {
+    api_router().fallback(static_handler)
 }
 
 #[derive(Deserialize)]

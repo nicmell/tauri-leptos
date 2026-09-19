@@ -103,11 +103,16 @@ tauri-leptos-cli serve [--listen <ADDR:PORT>] [--log-to-file] [--app-dir <DIR>]
 
 ## Dev workflows
 
-- **UI iteration (browser, hot reload)**: terminal A
-  `cargo run -p tauri-leptos-cli -- serve`, terminal B `trunk serve` →
-  browse `:1420`; Trunk proxies `/api` and `/ws` to `:3000` so the
-  browser stays same-origin.
-- **Desktop**: `cargo tauri dev`. After a UI edit:
-  `trunk build --config Trunk.toml` + reload the window (debug builds
-  read `dist/` from disk).
-- **Headless**: `cargo run -p tauri-leptos-cli -- serve`.
+- **Desktop**: `cargo tauri dev` — the integrated watch loop. Tauri
+  rebuilds and relaunches on Rust changes (`.taurignore` excludes
+  `crates/ui`, `dist/`, `appdir/`); trunk (spawned by
+  `beforeDevCommand`) hot-reloads the UI. In dev the webview loads
+  `devUrl` (:1420) and trunk proxies `/api`/`/ws` to the app's server
+  on the fixed port 3000 (`tauri::is_dev()` picks the port and skips
+  the `WebviewUrl::External` override). Android and release builds are
+  unaffected: embedded assets, ephemeral port, single origin.
+- **Browser (headless)**: `mprocs` (config in `mprocs.yaml`) runs
+  `bacon serve` (restart on Rust changes, against `appdir/`) and
+  `trunk serve` side by side → browse `:1420`; same-origin through the
+  trunk proxies. Quit with `q` (stops both).
+- **One-shot headless**: `cargo run -p tauri-leptos-cli -- serve`.

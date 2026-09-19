@@ -4,18 +4,18 @@
   "version": "0.1.0",
   "identifier": "com.nick.tauri-leptos",
   "build": {
-    "beforeDevCommand": "trunk serve",
-    "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "trunk build",
-    "frontendDist": "../dist"
+    "beforeDevCommand": "trunk build --config ../Trunk.toml",
+    "beforeBuildCommand": "trunk build --config ../Trunk.toml"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
+        "label": "main",
         "title": "tauri-leptos",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "create": false
       }
     ],
     "security": {

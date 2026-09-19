@@ -1,0 +1,29 @@
+[package]
+name = "tauri-leptos-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+dirs.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "ansi"] }
+tracing-appender.workspace = true
+axum.workspace = true
+tokio.workspace = true
+rust-embed.workspace = true
+mime_guess.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+paranoid-android.workspace = true
+# debug builds run on-device where the host dist/ path does not exist
+rust-embed = { workspace = true, features = ["debug-embed"] }
+
+[dev-dependencies]
+tower.workspace = true
+
+[lints]
+workspace = true

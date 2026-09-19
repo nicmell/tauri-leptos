@@ -27,6 +27,8 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# path-only workspace deps (tauri-leptos-core) carry no version; private crates only
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"

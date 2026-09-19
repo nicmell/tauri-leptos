@@ -1,0 +1,15 @@
+[package]
+name = "tauri-leptos-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tauri-leptos-core.workspace = true
+
+[lints]
+workspace = true

@@ -1,23 +1,43 @@
+use futures::{SinkExt, StreamExt};
+use gloo_net::http::Request;
+use gloo_net::websocket::{Message, futures::WebSocket};
 use leptos::task::spawn_local;
 use leptos::{ev::SubmitEvent, prelude::*};
-use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
+use serde::Deserialize;
 
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"])]
-    async fn invoke(cmd: &str, args: JsValue) -> JsValue;
+#[derive(Deserialize)]
+struct HelloResponse {
+    message: String,
 }
 
-#[derive(Serialize, Deserialize)]
-struct GreetArgs<'a> {
-    name: &'a str,
+/// One round trip through the server's `/ws` echo endpoint.
+async fn ws_roundtrip(text: &str) -> Result<String, String> {
+    let location = window().location();
+    let host = location.host().map_err(|_| "no window host".to_owned())?;
+    let scheme = if location.protocol().map_err(|_| "no protocol".to_owned())? == "https:" {
+        "wss"
+    } else {
+        "ws"
+    };
+    let mut ws = WebSocket::open(&format!("{scheme}://{host}/ws")).map_err(|e| e.to_string())?;
+    ws.send(Message::Text(text.to_owned()))
+        .await
+        .map_err(|e| e.to_string())?;
+    let reply = match ws.next().await {
+        Some(Ok(Message::Text(t))) => t,
+        Some(Ok(Message::Bytes(_))) => return Err("unexpected binary reply".to_owned()),
+        Some(Err(e)) => return Err(e.to_string()),
+        None => return Err("connection closed".to_owned()),
+    };
+    ws.close(None, None).map_err(|e| e.to_string())?;
+    Ok(reply)
 }
 
 #[component]
 pub fn App() -> impl IntoView {
     let (name, set_name) = signal(String::new());
     let (greet_msg, set_greet_msg) = signal(String::new());
+    let (echo_msg, set_echo_msg) = signal(String::new());
 
     let update_name = move |ev| {
         let v = event_target_value(&ev);
@@ -32,10 +52,28 @@ pub fn App() -> impl IntoView {
                 return;
             }
 
-            let args = serde_wasm_bindgen::to_value(&GreetArgs { name: &name }).unwrap();
-            // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-            let new_msg = invoke("greet", args).await.as_string().unwrap();
-            set_greet_msg.set(new_msg);
+            let message = match Request::get("/api/hello")
+                .query([("name", name.as_str())])
+                .send()
+                .await
+            {
+                Ok(response) => match response.json::<HelloResponse>().await {
+                    Ok(body) => body.message,
+                    Err(e) => format!("invalid response: {e}"),
+                },
+                Err(e) => format!("request failed: {e}"),
+            };
+            set_greet_msg.set(message);
+        });
+    };
+
+    let ws_echo = move |_| {
+        spawn_local(async move {
+            let message = match ws_roundtrip("ping from the ui").await {
+                Ok(reply) => format!("echo: {reply}"),
+                Err(e) => format!("websocket failed: {e}"),
+            };
+            set_echo_msg.set(message);
         });
     };
 
@@ -58,6 +96,11 @@ pub fn App() -> impl IntoView {
                 <button type="submit">"Greet"</button>
             </form>
             <p>{move || greet_msg.get()}</p>
+
+            <div class="row">
+                <button on:click=ws_echo>"WebSocket echo"</button>
+            </div>
+            <p>{move || echo_msg.get()}</p>
         </main>
     }
 }

@@ -25,8 +25,10 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - uses: cargo-bins/cargo-binstall@main
-      - name: Install leptosfmt and nextest
-        run: cargo binstall -y leptosfmt cargo-nextest
+      - name: Install leptosfmt, nextest and trunk
+        run: cargo binstall -y leptosfmt cargo-nextest trunk
+      - name: Build frontend
+        run: trunk build
       - name: rustfmt
         run: cargo fmt --all --check
       - name: leptosfmt

@@ -6,6 +6,7 @@ members = ["crates/ui", "src-tauri"]
 version = "0.1.0"
 edition = "2024"
 authors = ["nicmell"]
+publish = false
 
 [workspace.lints.rust]
 unsafe_code = "warn"

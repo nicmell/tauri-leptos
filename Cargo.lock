@@ -4907,6 +4907,8 @@ dependencies = [
  "leptos_router",
  "serde",
  "tauri-leptos-core",
+ "tokio",
+ "tower",
  "wasm-bindgen",
 ]
 

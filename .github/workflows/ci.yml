@@ -41,6 +41,26 @@ jobs:
         run: cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
       - name: tests
         run: cargo nextest run --workspace --no-tests=pass
+      - name: tests (ui ssr)
+        run: cargo nextest run -p tauri-leptos-ui --features ssr --no-tests=pass
+
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-leptos
+        run: cargo binstall -y cargo-leptos
+      - name: Build frontend and server
+        run: |
+          cargo leptos build
+          cargo build -p tauri-leptos-cli --features frontend
+      - name: Hydration smoke (headless chrome)
+        run: node scripts/e2e-smoke.mjs
 
   deny:
     runs-on: ubuntu-latest

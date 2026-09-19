@@ -36,5 +36,9 @@ ssr = [
   "dep:tauri-leptos-core",
 ]
 
+[dev-dependencies]
+tokio.workspace = true
+tower.workspace = true
+
 [lints]
 workspace = true

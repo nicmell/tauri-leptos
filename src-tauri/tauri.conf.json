@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.nick.tauri-leptos",
   "build": {
+    "beforeBuildCommand": "trunk build --config ../Trunk.toml",
     "beforeDevCommand": "trunk serve --config ../Trunk.toml",
-    "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "trunk build --config ../Trunk.toml"
+    "devUrl": "http://localhost:1420"
   },
   "app": {
     "withGlobalTauri": false,

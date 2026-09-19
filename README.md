@@ -60,11 +60,6 @@ mprocs           # backend (bacon serve, restart on Rust changes) + trunk serve
 (`cargo install mprocs`; or run `bacon serve` and `trunk serve` in two
 terminals yourself). UI on :1420, `/api` + `/ws` proxied to :3000.
 
-Note: `cargo tauri dev`, `mprocs`, and a plain `serve` run all bind
-port 3000 — run one at a time (an `AddrInUse` failure means another is
-still running, e.g. a forgotten IDE run tab), or pass `--listen` to a
-standalone serve.
-
 **Reproducible runs**: `--app-dir appdir` (or
 `TAURI_LEPTOS_APP_DIR=$PWD/appdir`) pins config/data/cache/logs under
 the repo-local `appdir/` (gitignored). Without it, platform defaults

@@ -27,8 +27,15 @@ const cleanup = () => {
     // chrome may still be flushing its profile; leftover tmp dirs are fine
   }
 };
-const fail = (msg) => {
+const browserLog = [];
+let evaluate = null; // assigned once the CDP session is up
+const fail = async (msg) => {
   console.error(`FAIL: ${msg}`);
+  for (const line of browserLog.slice(-25)) console.error(`  [browser] ${line}`);
+  if (evaluate) {
+    const body = await evaluate("document.body.innerHTML.slice(0, 600)").catch(() => "?");
+    console.error(`  [dom] ${body}`);
+  }
   cleanup();
   process.exit(1);
 };
@@ -40,7 +47,7 @@ async function until(desc, fn, timeoutMs = 15000) {
     if (await fn().catch(() => false)) return;
     await wait(300);
   }
-  fail(`timeout waiting for ${desc}`);
+  await fail(`timeout waiting for ${desc}`);
 }
 
 // 1. server
@@ -90,6 +97,18 @@ ws.onmessage = (event) => {
   if (pending.has(msg.id)) {
     pending.get(msg.id)(msg);
     pending.delete(msg.id);
+    return;
+  }
+  // collect page console + errors for failure diagnostics
+  if (msg.method === "Runtime.consoleAPICalled") {
+    browserLog.push(
+      `${msg.params.type}: ${msg.params.args.map((a) => a.value ?? a.description ?? "").join(" ")}`,
+    );
+  } else if (msg.method === "Runtime.exceptionThrown") {
+    browserLog.push(`exception: ${msg.params.exceptionDetails.text} ${msg.params.exceptionDetails.exception?.description ?? ""}`);
+  } else if (msg.method === "Network.responseReceived") {
+    const r = msg.params.response;
+    if (r.status >= 400) browserLog.push(`http ${r.status}: ${r.url}`);
   }
 };
 const command = (method, params = {}) =>
@@ -98,9 +117,11 @@ const command = (method, params = {}) =>
     pending.set(id, resolve);
     ws.send(JSON.stringify({ id, method, params }));
   });
-const evaluate = async (expression) =>
+evaluate = async (expression) =>
   (await command("Runtime.evaluate", { expression, returnByValue: true })).result?.result?.value;
 
+await command("Runtime.enable");
+await command("Network.enable");
 await command("Page.navigate", { url: `http://127.0.0.1:${PORT}/` });
 
 // 3. wait for hydration (buttons become responsive once wasm attached)

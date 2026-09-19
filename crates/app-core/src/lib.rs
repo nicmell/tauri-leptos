@@ -1,3 +1,4 @@
+pub mod logging;
 pub mod paths;
 
 /// Bundle identifier, kept in sync with `src-tauri/tauri.conf.json`.

@@ -1,118 +1,118 @@
 # Architecture
 
-A Tauri 2 + Leptos template that runs the same application three ways:
-desktop app, Android app, and headless server. One HTTP server serves
-every mode; the Tauri shells are thin windows onto it.
+A pure-Rust application template: **Leptos SSR** frontend rendered by an
+**axum** server, wrapped by **Tauri 2** shells (desktop, Android) or run
+headless. One origin everywhere: page, API, and WebSocket come from the
+same server — no CORS, no Tauri IPC.
 
 ## Crate map
 
 ```
-crates/ui        Leptos frontend (CSR wasm, built by Trunk into dist/)
-crates/app-core  paths + logging + the axum server; no Tauri dependency
-crates/app-cli   `tauri-leptos-cli` headless binary; no Tauri dependency
-src-tauri        Tauri shell: desktop binary + Android entry point
-                 (depends on app-core)
+crates/ui          Leptos app: components, SSR shell, server functions.
+                   Features: hydrate (wasm) / ssr (server: leptos_axum router)
+crates/app-core    config + paths + logging + API router (axum). No Leptos, no Tauri.
+crates/app-cli     tauri-leptos-cli. Default build: dev API server (no leptos
+                   graph). --features frontend: full production server.
+crates/dev-server  dev only: SSR routes + /api,/ws reverse proxy. cargo-leptos
+                   bin-package.
+src-tauri          Tauri shell (desktop + Android). Feature ssr = in-process
+                   server (always on for Android).
 ```
 
-`src-tauri` and `app-cli` are the two executables; both compose the same
-`app-core`. The headless binary never links Tauri (or webkit), which is
-what makes it trivially cross-compilable for the Raspberry Pi.
+## Dev: two processes, state stays alive
 
-## Run modes
+```
+cargo leptos watch ──► dev-server :3000 ── SSR + hydration (hot reload)
+                          │ /api, /ws proxied
+                          ▼
+tauri-leptos-cli serve ──► API server :3001 (axum only, holds state,
+                           never restarted by UI work)
+```
 
-All three modes run the same axum server from `app-core::server`:
+- UI edits rebuild only the dev-server (the one place the leptos graph
+  compiles in dev); the API process — and its in-memory state — survives.
+  `/api/counter` exists to prove it.
+- `mprocs` starts the pair; browse `:3000`.
+- Desktop: `cargo tauri dev` on top — a thin shell (no leptos deps) whose
+  webview attaches to `:3000`.
+- **Server functions run in the dev-server process in dev.** Keep them
+  stateless; real state lives behind `/api` and `/ws` in the API server.
 
-| mode | entry | server bind | UI |
-| --- | --- | --- | --- |
-| desktop | `src-tauri` binary | `127.0.0.1:<ephemeral>` | webview pointed at the server URL |
-| android | `mobile_entry_point` in `src-tauri` lib | `127.0.0.1:<ephemeral>` | webview pointed at the server URL |
-| serve | `tauri-leptos-cli serve` | `--listen` (default `127.0.0.1:3000`) | any browser |
+## Prod: one binary per target, SSR in-process
 
-Single origin by construction: assets, `/api`, and `/ws` come from the
-same server, so there is no CORS, no Tauri IPC (`invoke`), and no
-injected base URL. The webview is created at runtime from the window
-config (`create: false` in `tauri.conf.json`) with
-`WebviewUrl::External` carrying the ephemeral port.
+| target | binary | site_root |
+| --- | --- | --- |
+| headless (Pi) | `tauri-leptos-cli --features frontend` | `--site-root` > config > `/usr/local/share/tauri-leptos/site` (Linux) |
+| desktop | `cargo tauri build -f ssr` | `resource_dir()/site` (bundled via `bundle.resources`) |
+| android | `cargo tauri android build` | `app_local_data_dir()/site`, unpacked from the bundled `site.tar` once per app version |
 
-## HTTP surface
+Android cannot serve APK assets from the filesystem (they live inside the
+APK zip and cannot even be enumerated), hence the tar + first-launch
+extraction via the fs plugin's Rust API. iOS would follow the desktop
+path (bundle resources are real files).
 
-- `GET /api/hello?name=…` — sample JSON endpoint
-- `GET /ws` — WebSocket echo (Text/Binary frames)
-- everything else — the embedded frontend bundle, with SPA fallback to
-  `index.html`; `503` with a hint until `trunk build` has run
+The release artifact for the Pi is the **binary + `site/` directory
+pair** — the install script moves them together.
 
-## Asset embedding
+## Asset naming
 
-`app-core` embeds the repo-root `dist/` (Trunk's output) with
-`rust-embed`:
+`LEPTOS_OUTPUT_NAME` is pinned workspace-wide in `.cargo/config.toml`:
+leptos derives asset URLs (e.g. `pkg/tauri-leptos.wasm`) from it at
+compile time, and only cargo-leptos builds would otherwise have it set —
+plain `cargo build` would emit wasm-bindgen's `_bg.wasm` name and 404.
+`hash-files` stays off; cache-busting can come later via headers.
 
-- **release**: files compiled into the binary — single self-contained
-  executable
-- **debug (desktop/serve)**: read from disk at runtime — edit UI, run
-  `trunk build`, reload; no Rust rebuild
-- **android**: `debug-embed` forces embedding even in debug builds (the
-  host path does not exist on the device)
+## Config
 
-Build order is always `trunk build` → `cargo build`; the Tauri
-`beforeDevCommand`/`beforeBuildCommand` hooks do this automatically.
+`config.toml` in the app config dir (seeded with defaults on first run):
+
+| field | default | meaning |
+| --- | --- | --- |
+| `listen` | `127.0.0.1:3000` | server bind address |
+| `api_addr` | `127.0.0.1:3001` | dev proxy target |
+| `site_root` | *(platform default)* | frontend bundle directory |
+| `log_to_file` | `false` | daily-rolling file in the app log dir |
+
+`serve` flags override config; an invalid file is a hard error in serve
+mode (systemd must see it) while the Tauri shell degrades to defaults.
+`tauri-leptos-cli config write|validate` manage the file.
 
 ## Paths
 
-`app-core::paths::AppPaths` uses the Tauri v2 path API names. In tauri
-mode the shell reads Tauri's own `PathResolver`; standalone mode
-reproduces the same mapping:
+`AppPaths` mirrors the Tauri v2 path API names. The Tauri shells use
+Tauri's own resolver; standalone resolution (headless) is identical:
 
 | name | macOS | Linux |
 | --- | --- | --- |
 | `app_config_dir` | `~/Library/Application Support/<id>` | `~/.config/<id>` |
 | `app_data_dir` | `~/Library/Application Support/<id>` | `~/.local/share/<id>` |
-| `app_local_data_dir` | `~/Library/Application Support/<id>` | `~/.local/share/<id>` |
 | `app_cache_dir` | `~/Library/Caches/<id>` | `~/.cache/<id>` |
 | `app_log_dir` | `~/Library/Logs/<id>` | `~/.local/share/<id>/logs` |
 
-`<id>` = `com.nick.tauri-leptos`.
-
-Standalone override precedence (highest first):
-
-1. `--app-dir <DIR>` / `TAURI_LEPTOS_APP_DIR` (empty value = unset) —
-   everything under one folder (`config/ data/ cache/ logs/`);
-   reproducible dev and test runs
-2. systemd directory env vars (`CONFIGURATION_DIRECTORY`,
-   `STATE_DIRECTORY`, `CACHE_DIRECTORY`, `LOGS_DIRECTORY`), as injected
-   by the corresponding unit directives
-3. the platform defaults above
+Override precedence (standalone): `--app-dir` / `TAURI_LEPTOS_APP_DIR`
+(empty = unset; everything under one folder — reproducible dev runs
+against `appdir/`) > systemd `*_DIRECTORY` env vars > platform defaults.
 
 ## Logging
 
-One `tracing` stack everywhere; only the writer changes:
+One tracing stack; the writer changes per context: stderr (journald
+under systemd), opt-in rolling file (`log_to_file`), logcat on Android
+(tag `tauri-leptos`), browser console in the wasm bundle. `RUST_LOG`
+overrides the `info` default.
 
-| context | writer |
-| --- | --- |
-| desktop + serve | stderr (journald under systemd) |
-| serve with `--log-to-file` | + daily-rolling file in `app_log_dir` |
-| android | logcat (tag `tauri-leptos`, via paranoid-android) |
-| browser/wasm | console (tracing-web) |
+## HTTP surface
 
-`RUST_LOG` overrides the default `info` filter.
-
-## CLI
-
-```
-tauri-leptos-cli serve [--listen <ADDR:PORT>] [--log-to-file] [--app-dir <DIR>]
-```
+- `GET /api/hello?name=…` — sample JSON endpoint
+- `GET /api/counter` — in-memory state marker (dev-loop proof)
+- `GET /ws` — WebSocket echo
+- `POST /api/server_greet<hash>` — generated by the `#[server]` demo fn
+- everything else — SSR routes + hydration assets
 
 ## Dev workflows
 
-- **Desktop**: `cargo tauri dev` — the integrated watch loop. Tauri
-  rebuilds and relaunches on Rust changes (`.taurignore` excludes
-  `crates/ui`, `dist/`, `appdir/`); trunk (spawned by
-  `beforeDevCommand`) hot-reloads the UI. In dev the webview loads
-  `devUrl` (:1420) and trunk proxies `/api`/`/ws` to the app's server
-  on the fixed port 3000 (`tauri::is_dev()` picks the port and skips
-  the `WebviewUrl::External` override). Android and release builds are
-  unaffected: embedded assets, ephemeral port, single origin.
-- **Browser (headless)**: `mprocs` (config in `mprocs.yaml`) runs
-  `bacon serve` (restart on Rust changes, against `appdir/`) and
-  `trunk serve` side by side → browse `:1420`; same-origin through the
-  trunk proxies. Quit with `q` (stops both).
-- **One-shot headless**: `cargo run -p tauri-leptos-cli -- serve`.
+```bash
+mprocs                       # watch (:3000) + api (:3001) in one terminal
+cargo tauri dev              # desktop shell on top (attaches to :3000)
+cargo leptos watch           # frontend half alone
+cargo run -p tauri-leptos-cli -- serve --app-dir appdir --listen 127.0.0.1:3001
+```

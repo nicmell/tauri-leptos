@@ -1,7 +1,8 @@
 # Raspberry Pi (headless server)
 
-The headless binary (`tauri-leptos-cli`) has no Tauri/webkit
-dependencies — it is a plain axum server with the frontend embedded.
+The headless binary has no Tauri/webkit dependencies. The release
+artifact is a **pair**: the binary and the `site/` frontend directory —
+they version together, ship them together.
 
 ## Build
 
@@ -9,22 +10,28 @@ On the Pi (or any aarch64 Linux host):
 
 ```bash
 rustup target add wasm32-unknown-unknown
-cargo install trunk
-trunk build --release
-cargo build --release -p tauri-leptos-cli
+cargo install cargo-leptos
+cargo leptos build --release
+cargo build --release -p tauri-leptos-cli --features frontend
 ```
 
-Cross-compiling from another machine: build `trunk build --release`
-first, then `cargo build --release -p tauri-leptos-cli --target
-aarch64-unknown-linux-gnu` with your preferred cross toolchain (e.g.
-`cross`). The frontend is embedded at compile time, so the single
-binary is the whole deployment artifact.
+Cross-compiling from another machine: cargo-leptos supports it natively —
+set `bin-target-triple = "aarch64-unknown-linux-gnu"` in
+`[[workspace.metadata.leptos]]` (add `bin-cargo-command = "cross"` if the
+host cannot link aarch64); the binary lands under
+`target/server/aarch64-unknown-linux-gnu/release/`, `target/site` as
+usual.
 
 ## Install
 
 ```bash
 sudo install -m 755 target/release/tauri-leptos-cli /usr/local/bin/
+sudo mkdir -p /usr/local/share/tauri-leptos
+sudo cp -r target/site /usr/local/share/tauri-leptos/site
 ```
+
+`/usr/local/share/tauri-leptos/site` is the built-in default
+`site_root` on Linux; a future install script owns these steps.
 
 ## systemd unit
 
@@ -49,9 +56,11 @@ WantedBy=multi-user.target
 ```
 
 The `*Directory=` directives make systemd own `/etc/tauri-leptos`,
-`/var/lib/tauri-leptos`, etc., and export the matching
-`*_DIRECTORY` env vars, which the app's path resolution picks up
-automatically (see [architecture](../architecture.md#paths)).
+`/var/lib/tauri-leptos`, etc., and export the matching `*_DIRECTORY` env
+vars that the app's path resolution picks up. `config.toml` (seeded on
+first run under `/etc/tauri-leptos`) can replace the `--listen` flag.
+An invalid config makes serve exit non-zero — visible in
+`systemctl status`.
 
 ```bash
 sudo systemctl daemon-reload
@@ -61,10 +70,8 @@ journalctl -u tauri-leptos -f        # logs (the app writes to stderr)
 
 ## Manual runs
 
-For an ad-hoc run with everything under one folder:
-
 ```bash
-tauri-leptos-cli serve --app-dir ~/tauri-leptos-data --log-to-file
+tauri-leptos-cli serve --app-dir ~/tl-data --site-root target/site --log-to-file
 ```
 
-(or `TAURI_LEPTOS_APP_DIR=…`; an empty value acts as unset).
+(`TAURI_LEPTOS_APP_DIR` works too; an empty value acts as unset.)

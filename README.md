@@ -1,26 +1,26 @@
 # tauri-leptos
 
-A pure-Rust application template: **Tauri 2** shell + **Leptos** (CSR,
-wasm) frontend + one shared **axum** server. The same app runs three
-ways — desktop, Android, and headless server — all serving the UI, API,
-and WebSocket from a single origin. No Tauri IPC, no CORS.
+A pure-Rust application template: **Leptos SSR** rendered by an **axum**
+server, wrapped by **Tauri 2** shells (desktop, Android) or run headless.
+Single origin everywhere — page, API, and WebSocket from one server; no
+CORS, no Tauri IPC. Server functions included.
 
 Full picture: [docs/architecture.md](docs/architecture.md).
 
 ```
-crates/ui        Leptos frontend (Trunk → dist/)
-crates/app-core  paths + logging + axum server (no Tauri)
-crates/app-cli   tauri-leptos-cli headless binary (no Tauri)
-src-tauri        Tauri shell (desktop + Android)
-docs/            architecture + install guides
-appdir/          repo-local app root for reproducible dev runs
+crates/ui          Leptos app (hydrate/ssr) + server functions
+crates/app-core    config + paths + logging + API router (no Leptos/Tauri)
+crates/app-cli     tauri-leptos-cli: dev API server / full server (--features frontend)
+crates/dev-server  dev only: SSR + /api,/ws proxy (cargo-leptos bin)
+src-tauri          Tauri shell (desktop + Android)
+appdir/            repo-local app root for reproducible dev runs
 ```
 
 ## Prerequisites
 
 ```bash
 rustup target add wasm32-unknown-unknown
-cargo install trunk tauri-cli
+cargo install cargo-leptos tauri-cli
 # optional dev tools
 cargo install bacon cargo-nextest cargo-deny leptosfmt mprocs
 ```
@@ -28,66 +28,43 @@ cargo install bacon cargo-nextest cargo-deny leptosfmt mprocs
 ## Quick start
 
 ```bash
-cargo tauri dev                                    # desktop app
-cargo run -p tauri-leptos-cli -- serve             # headless, http://127.0.0.1:3000
+mprocs                  # dev loop: SSR watch (:3000) + API server (:3001)
+cargo tauri dev         # + desktop shell attached to :3000
 ```
 
-`trunk build` runs automatically before tauri commands; for the
-headless binary run it yourself first (debug builds then read `dist/`
-from disk, release builds embed it).
+Browse `http://127.0.0.1:3000`. UI edits hot-reload through
+`cargo leptos watch`; the API server (and its state — try
+`/api/counter`) is never restarted by UI work.
 
-## Local development
-
-**Desktop — one command, full watch:**
+## Production builds
 
 ```bash
-cargo tauri dev
+# headless (binary + target/site directory pair)
+cargo leptos build --release
+cargo build --release -p tauri-leptos-cli --features frontend
+
+# desktop (in-process SSR, frontend bundled in Resources)
+cargo tauri build -f ssr
+
+# android (frontend shipped as site.tar, unpacked on first launch)
+cargo tauri android build
 ```
 
-Tauri watches the Rust side (rebuild + relaunch on change; `crates/ui`,
-`dist/` and `appdir/` are excluded via `.taurignore`), while trunk —
-spawned as `beforeDevCommand` — hot-reloads the UI. In dev the webview
-loads from trunk (`devUrl` :1420) and `/api`/`/ws` are proxied to the
-app's server on the fixed port 3000; release builds are single-origin
-on an ephemeral port with everything embedded.
-
-**Browser (headless)** — one terminal:
-
-```bash
-mprocs           # backend (bacon serve, restart on Rust changes) + trunk serve
-```
-
-(`cargo install mprocs`; or run `bacon serve` and `trunk serve` in two
-terminals yourself). UI on :1420, `/api` + `/ws` proxied to :3000.
-
-**Reproducible runs**: `--app-dir appdir` (or
-`TAURI_LEPTOS_APP_DIR=$PWD/appdir`) pins config/data/cache/logs under
-the repo-local `appdir/` (gitignored). Without it, platform defaults
-apply — see the [path table](docs/architecture.md#paths). The tauri
-shell uses Tauri's own path resolver and ignores this override.
-
-**Android**: see [docs/install/android.md](docs/install/android.md).
-
-RustRover users: ready-made run configurations live in `.run/`
-(including a compound `Dev: UI + Server`).
+Install guides: [macOS](docs/install/macos.md),
+[Android](docs/install/android.md),
+[Raspberry Pi + systemd](docs/install/raspberry-pi.md).
 
 ## Tests and quality
 
 ```bash
-cargo nextest run --workspace --no-tests=pass   # native tests
-wasm-pack test --headless --chrome crates/ui    # wasm/browser tests
-cargo clippy --workspace --all-targets          # lints (pedantic, -Dwarnings in CI)
-cargo clippy -p tauri-leptos-ui --target wasm32-unknown-unknown
-cargo fmt --all && leptosfmt crates/ui/src      # format
-cargo deny check                                # advisories/licenses/bans
-bacon                                           # watch loop (c/w/t/d jobs)
+cargo nextest run --workspace --no-tests=pass          # native tests
+cargo nextest run -p tauri-leptos-ui --features ssr    # SSR render tests
+node scripts/e2e-smoke.mjs                             # hydration smoke (headless chrome)
+cargo clippy --workspace --all-targets                 # + ui: --features ssr / hydrate(wasm32)
+cargo fmt --all && leptosfmt crates/ui/src             # format
+cargo deny check                                       # advisories/licenses/bans
+bacon                                                  # watch loop (c/w/t/d/s jobs)
 ```
 
-CI runs all of the above on every PR. Conventions (workspace lints,
-dependency policy, commit discipline) live in [CLAUDE.md](CLAUDE.md).
-
-## Install / deploy
-
-- [macOS desktop](docs/install/macos.md)
-- [Android](docs/install/android.md)
-- [Raspberry Pi headless + systemd](docs/install/raspberry-pi.md)
+CI runs all of the above on every PR. Conventions live in
+[CLAUDE.md](CLAUDE.md); RustRover run configurations in `.run/`.

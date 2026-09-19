@@ -1,7 +1,5 @@
-# Browser dev loop: `mprocs` starts both watchers in one terminal
-# (backend restart-on-change + UI hot reload); browse http://127.0.0.1:1420.
+# Interim dev loop (full split lands with the dev-server step):
+# cargo leptos watch rebuilds server + wasm with live reload on :3000.
 procs:
-  server:
-    cmd: ["bacon", "serve"]
-  ui:
-    cmd: ["trunk", "serve"]
+  watch:
+    cmd: ["cargo", "leptos", "watch"]

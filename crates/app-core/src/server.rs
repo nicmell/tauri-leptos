@@ -1,7 +1,7 @@
-//! The single HTTP server shared by every run mode: serves the embedded
-//! Trunk bundle (from disk in debug builds), a sample JSON endpoint, and a
-//! WebSocket echo. The Tauri shell points its webview at this server, so
-//! everything is same-origin — no CORS, no IPC.
+//! The API half of the single shared HTTP server: sample JSON endpoint and
+//! WebSocket echo, plus the bind/serve/shutdown machinery. Frontend routes
+//! (leptos SSR) are merged on top by the ui crate; every run mode stays
+//! same-origin — no CORS, no IPC.
 
 use std::future::Future;
 use std::io;
@@ -10,17 +10,9 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use axum::Json;
 use axum::extract::Query;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::http::{StatusCode, Uri, header};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
-
-/// The Trunk output at the repo root. `allow_missing` keeps `cargo check`
-/// working on a fresh clone; the server answers 503 until `trunk build` runs.
-#[derive(rust_embed::Embed)]
-#[folder = "$CARGO_MANIFEST_DIR/../../dist"]
-#[allow_missing]
-struct Dist;
 
 pub struct Server {
     listener: std::net::TcpListener,
@@ -75,16 +67,11 @@ pub async fn shutdown_signal() {
     tracing::info!("shutdown signal received");
 }
 
-/// The API surface alone (no static assets) — merged into the SSR
-/// router by the ui crate.
+/// The API surface — merged with the SSR routes by the ui crate.
 pub fn api_router() -> axum::Router {
     axum::Router::new()
         .route("/api/hello", get(hello))
         .route("/ws", get(ws_upgrade))
-}
-
-pub fn router() -> axum::Router {
-    api_router().fallback(static_handler)
 }
 
 #[derive(Deserialize)]
@@ -120,31 +107,4 @@ async fn echo(mut socket: WebSocket) {
             _ => {}
         }
     }
-}
-
-fn serve_embedded(path: &str) -> Option<Response> {
-    let file = Dist::get(path)?;
-    let mime = mime_guess::from_path(path).first_or_octet_stream();
-    Some(
-        (
-            [(header::CONTENT_TYPE, mime.as_ref())],
-            file.data.into_owned(),
-        )
-            .into_response(),
-    )
-}
-
-async fn static_handler(uri: Uri) -> Response {
-    let path = uri.path().trim_start_matches('/');
-    let path = if path.is_empty() { "index.html" } else { path };
-    serve_embedded(path)
-        // SPA fallback: unknown paths get the app shell
-        .or_else(|| serve_embedded("index.html"))
-        .unwrap_or_else(|| {
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                "frontend not built - run `trunk build`",
-            )
-                .into_response()
-        })
 }

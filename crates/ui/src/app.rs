@@ -47,6 +47,8 @@ struct HelloResponse {
 }
 
 /// Demo server function: typed isomorphic RPC, no hand-written endpoint.
+// server functions must be async by contract, awaits or not
+#[allow(clippy::unused_async)]
 #[server]
 async fn server_greet(name: String) -> Result<String, ServerFnError> {
     Ok(format!("Hello, {name}! (rendered by a server function)"))

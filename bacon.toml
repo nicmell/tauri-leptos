@@ -1,0 +1,28 @@
+# bacon — background code checker (https://dystroy.org/bacon/)
+default_job = "check"
+
+[jobs.check]
+command = ["cargo", "check", "--workspace", "--all-targets"]
+need_stdout = false
+
+[jobs.clippy]
+command = ["cargo", "clippy", "--workspace", "--all-targets"]
+need_stdout = false
+
+[jobs.clippy-wasm]
+command = ["cargo", "clippy", "-p", "tauri-leptos-ui", "--target", "wasm32-unknown-unknown"]
+need_stdout = false
+
+[jobs.test]
+command = ["cargo", "nextest", "run", "--workspace", "--no-tests=pass"]
+need_stdout = true
+
+[jobs.doc]
+command = ["cargo", "doc", "--workspace", "--no-deps"]
+need_stdout = false
+
+[keybindings]
+c = "job:clippy"
+w = "job:clippy-wasm"
+t = "job:test"
+d = "job:doc"

@@ -1,5 +1,6 @@
 [build]
-target = "./index.html"
+target = "./crates/ui/index.html"
+dist = "./dist"
 
 [watch]
 ignore = ["./src-tauri"]

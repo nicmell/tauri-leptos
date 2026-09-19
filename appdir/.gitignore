@@ -1,0 +1,4 @@
+# The repo-local app root for reproducible dev runs
+# (tauri-leptos-cli serve --app-dir appdir): runtime data only.
+*
+!.gitignore

@@ -1,5 +1,20 @@
-# Interim dev loop (full split lands with the dev-server step):
-# cargo leptos watch rebuilds server + wasm with live reload on :3000.
+# Dev loop: SSR frontend with hot reload (cargo leptos watch, :3000)
+# + the state-holding API server (:3001, never restarted by UI work).
+# Desktop shell on top: `cargo tauri dev` (attaches to :3000).
 procs:
   watch:
     cmd: ["cargo", "leptos", "watch"]
+  api:
+    cmd:
+      [
+        "cargo",
+        "run",
+        "-p",
+        "tauri-leptos-cli",
+        "--",
+        "serve",
+        "--app-dir",
+        "appdir",
+        "--listen",
+        "127.0.0.1:3001",
+      ]

@@ -11,7 +11,11 @@ use tauri_leptos_core::paths::AppPaths;
 use tauri_leptos_core::{APP_DIR_ENV, logging, server};
 
 #[derive(Parser)]
-#[command(name = "tauri-leptos-cli", version, about = "tauri-leptos headless server")]
+#[command(
+    name = "tauri-leptos-cli",
+    version,
+    about = "tauri-leptos headless server"
+)]
 struct Cli {
     #[arg(
         long,

@@ -23,14 +23,12 @@ missing_panics_doc = "allow"
 [workspace.dependencies]
 # frontend
 leptos = { version = "0.8", features = ["csr"] }
+gloo-net = { version = "0.7", features = ["http", "websocket"] }
+futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "registry"] }
 tracing-web = "0.1"
 wasm-bindgen-test = "0.3"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
-serde-wasm-bindgen = "0.6"
 console_error_panic_hook = "0.1.7"
 
 # backend
@@ -42,7 +40,6 @@ tower = { version = "0.5", features = ["util"] }
 clap = { version = "4.6", features = ["derive"] }
 tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }
-tauri-plugin-opener = "2"
 
 # shared
 serde = { version = "1", features = ["derive"] }

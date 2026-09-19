@@ -7,11 +7,9 @@ publish.workspace = true
 
 [dependencies]
 leptos.workspace = true
-wasm-bindgen.workspace = true
-wasm-bindgen-futures.workspace = true
-js-sys.workspace = true
+gloo-net.workspace = true
+futures.workspace = true
 serde.workspace = true
-serde-wasm-bindgen.workspace = true
 console_error_panic_hook.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

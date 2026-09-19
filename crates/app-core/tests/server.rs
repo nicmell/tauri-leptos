@@ -17,7 +17,10 @@ async fn hello_greets_by_name() {
         .await
         .expect("read body");
     let json: serde_json::Value = serde_json::from_slice(&body).expect("json body");
-    assert_eq!(json["message"], "Hello, Nick! You've been greeted from Rust!");
+    assert_eq!(
+        json["message"],
+        "Hello, Nick! You've been greeted from Rust!"
+    );
 }
 
 #[tokio::test]
@@ -34,5 +37,8 @@ async fn hello_defaults_to_world() {
         .await
         .expect("read body");
     let json: serde_json::Value = serde_json::from_slice(&body).expect("json body");
-    assert_eq!(json["message"], "Hello, world! You've been greeted from Rust!");
+    assert_eq!(
+        json["message"],
+        "Hello, world! You've been greeted from Rust!"
+    );
 }

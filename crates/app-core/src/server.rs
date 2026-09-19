@@ -39,7 +39,10 @@ impl Server {
     }
 
     /// Serve until `shutdown` resolves, then finish in-flight requests.
-    pub async fn serve(self, shutdown: impl Future<Output = ()> + Send + 'static) -> io::Result<()> {
+    pub async fn serve(
+        self,
+        shutdown: impl Future<Output = ()> + Send + 'static,
+    ) -> io::Result<()> {
         if Dist::get("index.html").is_none() {
             tracing::warn!("no frontend bundle embedded; run `trunk build` and rebuild");
         }
@@ -119,7 +122,13 @@ async fn echo(mut socket: WebSocket) {
 fn serve_embedded(path: &str) -> Option<Response> {
     let file = Dist::get(path)?;
     let mime = mime_guess::from_path(path).first_or_octet_stream();
-    Some(([(header::CONTENT_TYPE, mime.as_ref())], file.data.into_owned()).into_response())
+    Some(
+        (
+            [(header::CONTENT_TYPE, mime.as_ref())],
+            file.data.into_owned(),
+        )
+            .into_response(),
+    )
 }
 
 async fn static_handler(uri: Uri) -> Response {

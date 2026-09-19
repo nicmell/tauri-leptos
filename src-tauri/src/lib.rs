@@ -1,12 +1,11 @@
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use tauri::Manager;
+use tauri_leptos_core::config::AppConfig;
 use tauri_leptos_core::logging::{self, LogGuard};
+use tauri_leptos_core::paths::AppPaths;
 use tauri_leptos_core::server::Server;
-
-/// Fixed SSR port: the webview URL, the leptos config, and the headless
-/// default all agree on it. Will move to config.toml.
-const PORT: u16 = 3000;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,16 +13,23 @@ pub fn run() {
     static LOG_GUARD: OnceLock<LogGuard> = OnceLock::new();
     let _ = LOG_GUARD.set(logging::init(None));
 
-    // Built outside cargo-leptos, so the leptos options are assembled by
-    // hand; site_root is where `cargo leptos build` leaves the assets.
-    let leptos_options = leptos::config::LeptosOptions::builder()
-        .output_name("tauri-leptos")
-        .site_root("target/site")
-        .site_addr(std::net::SocketAddr::from(([127, 0, 0, 1], PORT)))
-        .build();
+    // Same config as the headless server; the shell degrades to defaults
+    // instead of refusing to open a window.
+    let config = AppPaths::resolve_standalone(None)
+        .map_err(|e| eprintln!("[config] paths unavailable: {e}"))
+        .and_then(|paths| {
+            AppConfig::load(&paths).map_err(|e| eprintln!("[config] ignoring config: {e}"))
+        })
+        .unwrap_or_default();
+    let port = config.listen.port();
+    let site_root = config
+        .site_root
+        .unwrap_or_else(|| PathBuf::from("target/site"));
+
+    let leptos_options = tauri_leptos_ui::server::leptos_options(&site_root, config.listen);
     let app_router = tauri_leptos_ui::server::router(leptos_options);
 
-    let server = Server::bind(("127.0.0.1", PORT)).expect("bind the local http server");
+    let server = Server::bind(("127.0.0.1", port)).expect("bind the local http server");
 
     tauri::Builder::default()
         .setup(move |app| {
@@ -49,7 +55,7 @@ pub fn run() {
                 .cloned()
                 .ok_or("missing window config")?;
             window_config.url =
-                tauri::WebviewUrl::External(format!("http://127.0.0.1:{PORT}").parse()?);
+                tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse()?);
             tauri::WebviewWindowBuilder::from_config(app.handle(), &window_config)?.build()?;
             Ok(())
         })

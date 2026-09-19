@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use tauri_leptos_core::config::{AppConfig, CONFIG_FILE};
 use tauri_leptos_core::paths::AppPaths;
 use tauri_leptos_core::{APP_DIR_ENV, logging, server};
 
@@ -33,11 +34,34 @@ struct Cli {
 enum Command {
     /// Run the HTTP server
     Serve {
-        #[arg(long, default_value = "127.0.0.1:3000")]
-        listen: SocketAddr,
+        /// Listen address (overrides config.toml)
+        #[arg(long)]
+        listen: Option<SocketAddr>,
+        /// Frontend bundle directory (overrides config.toml)
+        #[arg(long)]
+        site_root: Option<PathBuf>,
         /// Also write logs to a daily-rolling file in the app log dir
         #[arg(long)]
         log_to_file: bool,
+    },
+    /// Inspect or create the configuration file
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Write the default config.toml (refuses to overwrite)
+    Write {
+        /// Target path (default: <app config dir>/config.toml)
+        path: Option<PathBuf>,
+    },
+    /// Check that a config file parses
+    Validate {
+        /// Path to check (default: <app config dir>/config.toml)
+        path: Option<PathBuf>,
     },
 }
 
@@ -59,18 +83,44 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match cli.command {
         Command::Serve {
             listen,
+            site_root,
             log_to_file,
         } => {
+            // Invalid config is a hard error: systemd must see the failure.
+            let config = AppConfig::load(&paths)?;
+            let listen = listen.unwrap_or(config.listen);
+            let site_root = site_root
+                .or_else(|| config.site_root.clone())
+                .unwrap_or_else(|| PathBuf::from("target/site"));
+            let log_to_file = log_to_file || config.log_to_file;
+
             let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
             paths.ensure_dirs()?;
-            // cargo-leptos supplies the config at compile time; --listen wins.
-            let mut leptos_options = leptos::config::get_configuration(None)?.leptos_options;
-            leptos_options.site_addr = listen;
+            let leptos_options = tauri_leptos_ui::server::leptos_options(&site_root, listen);
             let app = tauri_leptos_ui::server::router(leptos_options);
             let srv = server::Server::bind(listen)?;
-            tracing::info!(addr = %srv.local_addr()?, "serving");
+            tracing::info!(addr = %srv.local_addr()?, site_root = %site_root.display(), "serving");
             tracing::debug!(?paths, "resolved app paths");
             srv.serve(app, server::shutdown_signal()).await?;
+        }
+        Command::Config { action } => {
+            let default_path = || paths.app_config_dir.join(CONFIG_FILE);
+            match action {
+                ConfigAction::Write { path } => {
+                    let path = path.unwrap_or_else(default_path);
+                    if path.exists() {
+                        return Err(format!("{} already exists", path.display()).into());
+                    }
+                    AppConfig::default().seed(&path)?;
+                    println!("wrote {}", path.display());
+                }
+                ConfigAction::Validate { path } => {
+                    let path = path.unwrap_or_else(default_path);
+                    let text = std::fs::read_to_string(&path)?;
+                    AppConfig::parse(&text)?;
+                    println!("{} is valid", path.display());
+                }
+            }
         }
     }
     Ok(())

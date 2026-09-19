@@ -22,7 +22,7 @@ appdir/          repo-local app root for reproducible dev runs
 rustup target add wasm32-unknown-unknown
 cargo install trunk tauri-cli
 # optional dev tools
-cargo install bacon cargo-nextest cargo-deny leptosfmt
+cargo install bacon cargo-nextest cargo-deny leptosfmt mprocs
 ```
 
 ## Quick start
@@ -51,15 +51,19 @@ loads from trunk (`devUrl` :1420) and `/api`/`/ws` are proxied to the
 app's server on the fixed port 3000; release builds are single-origin
 on an ephemeral port with everything embedded.
 
-**Browser (headless)** — two terminals (or the RustRover compound):
+**Browser (headless)** — one terminal:
 
 ```bash
-bacon serve      # backend on :3000, restart on Rust changes
-trunk serve      # UI on :1420, /api + /ws proxied
+mprocs           # backend (bacon serve, restart on Rust changes) + trunk serve
 ```
 
-Note: desktop dev and the headless server both want port 3000 — run
-one at a time, or pass `--listen` to the headless one.
+(`cargo install mprocs`; or run `bacon serve` and `trunk serve` in two
+terminals yourself). UI on :1420, `/api` + `/ws` proxied to :3000.
+
+Note: `cargo tauri dev`, `mprocs`, and a plain `serve` run all bind
+port 3000 — run one at a time (an `AddrInUse` failure means another is
+still running, e.g. a forgotten IDE run tab), or pass `--listen` to a
+standalone serve.
 
 **Reproducible runs**: `--app-dir appdir` (or
 `TAURI_LEPTOS_APP_DIR=$PWD/appdir`) pins config/data/cache/logs under

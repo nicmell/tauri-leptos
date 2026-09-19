@@ -111,7 +111,8 @@ tauri-leptos-cli serve [--listen <ADDR:PORT>] [--log-to-file] [--app-dir <DIR>]
   on the fixed port 3000 (`tauri::is_dev()` picks the port and skips
   the `WebviewUrl::External` override). Android and release builds are
   unaffected: embedded assets, ephemeral port, single origin.
-- **Browser (headless)**: terminal A `bacon serve` (restart on Rust
-  changes, runs against `appdir/`), terminal B `trunk serve` → browse
-  `:1420`; same-origin through the trunk proxies.
+- **Browser (headless)**: `mprocs` (config in `mprocs.yaml`) runs
+  `bacon serve` (restart on Rust changes, against `appdir/`) and
+  `trunk serve` side by side → browse `:1420`; same-origin through the
+  trunk proxies. Quit with `q` (stops both).
 - **One-shot headless**: `cargo run -p tauri-leptos-cli -- serve`.

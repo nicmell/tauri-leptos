@@ -21,7 +21,11 @@ const appDir = mkdtempSync(join(tmpdir(), "tl-smoke-"));
 const procs = [];
 const cleanup = () => {
   for (const p of procs) p.kill("SIGKILL");
-  rmSync(appDir, { recursive: true, force: true });
+  try {
+    rmSync(appDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch {
+    // chrome may still be flushing its profile; leftover tmp dirs are fine
+  }
 };
 const fail = (msg) => {
   console.error(`FAIL: ${msg}`);
@@ -109,15 +113,24 @@ const click = (label) =>
     `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(label)})?.click(), true`,
   );
 
-// hydration has no explicit signal: click until the reactive output appears
-await until("server fn answer (hydration)", async () => {
-  await click("Server fn greet");
-  return (await evaluate("document.body.textContent")).includes("rendered by a server function");
-});
-await until("websocket echo", async () => {
-  await click("WebSocket echo");
-  return (await evaluate("document.body.textContent")).includes("echo: ping from the ui");
-});
+// hydration has no explicit signal: click until the reactive output
+// appears (generous timeout — CI runners instantiate debug wasm slowly)
+await until(
+  "server fn answer (hydration)",
+  async () => {
+    await click("Server fn greet");
+    return (await evaluate("document.body.textContent")).includes("rendered by a server function");
+  },
+  60000,
+);
+await until(
+  "websocket echo",
+  async () => {
+    await click("WebSocket echo");
+    return (await evaluate("document.body.textContent")).includes("echo: ping from the ui");
+  },
+  30000,
+);
 
 console.log("smoke OK: SSR page hydrated, server fn and websocket answered");
 cleanup();

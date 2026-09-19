@@ -1,7 +1,5 @@
-mod app;
-
-use app::App;
 use leptos::prelude::*;
+use tauri_leptos_ui::app::App;
 use tracing_subscriber::prelude::*;
 use tracing_web::MakeWebConsoleWriter;
 

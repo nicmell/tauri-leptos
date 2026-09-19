@@ -89,17 +89,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // Invalid config is a hard error: systemd must see the failure.
             let config = AppConfig::load(&paths)?;
             let listen = listen.unwrap_or(config.listen);
-            let site_root = site_root
-                .or_else(|| config.site_root.clone())
-                .unwrap_or_else(|| PathBuf::from("target/site"));
             let log_to_file = log_to_file || config.log_to_file;
 
             let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
             paths.ensure_dirs()?;
-            let leptos_options = tauri_leptos_ui::server::leptos_options(&site_root, listen);
-            let app = tauri_leptos_ui::server::router(leptos_options);
+
+            #[cfg(feature = "frontend")]
+            let app = {
+                let site_root = site_root
+                    .or_else(|| config.site_root.clone())
+                    .unwrap_or_else(|| PathBuf::from("target/site"));
+                tracing::info!(site_root = %site_root.display(), "frontend enabled");
+                let leptos_options = tauri_leptos_ui::server::leptos_options(&site_root, listen);
+                tauri_leptos_ui::server::router(leptos_options)
+            };
+            #[cfg(not(feature = "frontend"))]
+            let app = {
+                drop(site_root); // meaningful only with the frontend feature
+                server::api_router().route(
+                    "/",
+                    axum::routing::get(|| async {
+                        "tauri-leptos api server - no frontend in this build \
+                         (dev: cargo leptos watch serves it on :3000)"
+                    }),
+                )
+            };
+
             let srv = server::Server::bind(listen)?;
-            tracing::info!(addr = %srv.local_addr()?, site_root = %site_root.display(), "serving");
+            tracing::info!(addr = %srv.local_addr()?, "serving");
             tracing::debug!(?paths, "resolved app paths");
             srv.serve(app, server::shutdown_signal()).await?;
         }

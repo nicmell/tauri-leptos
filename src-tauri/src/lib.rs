@@ -1,11 +1,31 @@
-use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use tauri::Manager;
 use tauri_leptos_core::config::AppConfig;
 use tauri_leptos_core::logging::{self, LogGuard};
 use tauri_leptos_core::paths::AppPaths;
-use tauri_leptos_core::server::Server;
+
+/// The in-process SSR server ships in production builds and on mobile;
+/// desktop dev attaches to `cargo leptos watch` instead.
+#[cfg(any(feature = "ssr", target_os = "android"))]
+fn start_server(config: &AppConfig) {
+    use std::path::PathBuf;
+    use tauri_leptos_core::server::Server;
+
+    let site_root = config
+        .site_root
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("target/site"));
+    let leptos_options = tauri_leptos_ui::server::leptos_options(&site_root, config.listen);
+    let app_router = tauri_leptos_ui::server::router(leptos_options);
+    let server = Server::bind(config.listen).expect("bind the local http server");
+    tauri::async_runtime::spawn(async move {
+        // No shutdown signal: the server lives as long as the process.
+        if let Err(e) = server.serve(app_router, std::future::pending()).await {
+            tracing::error!("http server exited: {e}");
+        }
+    });
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -22,23 +42,16 @@ pub fn run() {
         })
         .unwrap_or_default();
     let port = config.listen.port();
-    let site_root = config
-        .site_root
-        .unwrap_or_else(|| PathBuf::from("target/site"));
-
-    let leptos_options = tauri_leptos_ui::server::leptos_options(&site_root, config.listen);
-    let app_router = tauri_leptos_ui::server::router(leptos_options);
-
-    let server = Server::bind(("127.0.0.1", port)).expect("bind the local http server");
 
     tauri::Builder::default()
         .setup(move |app| {
-            tauri::async_runtime::spawn(async move {
-                // No shutdown signal: the server lives as long as the process.
-                if let Err(e) = server.serve(app_router, std::future::pending()).await {
-                    tracing::error!("http server exited: {e}");
-                }
-            });
+            #[cfg(any(feature = "ssr", target_os = "android"))]
+            start_server(&config);
+            #[cfg(not(any(feature = "ssr", target_os = "android")))]
+            tracing::info!(
+                port,
+                "no in-process server in this build; attaching to cargo leptos watch"
+            );
 
             let resolver = app.path();
             tracing::info!(

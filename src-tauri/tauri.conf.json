@@ -4,8 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.nick.tauri-leptos",
   "build": {
-    "beforeBuildCommand": "cd .. && cargo leptos build --release",
-    "beforeDevCommand": "cd .. && cargo leptos build"
+    "beforeBuildCommand": "cd .. && cargo leptos build --release"
   },
   "app": {
     "withGlobalTauri": false,

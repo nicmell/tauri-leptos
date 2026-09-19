@@ -6,12 +6,18 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+axum.workspace = true
 clap.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-leptos.workspace = true
 tauri-leptos-core.workspace = true
-tauri-leptos-ui = { path = "../ui", features = ["ssr"] }
+tauri-leptos-ui = { path = "../ui", features = ["ssr"], optional = true }
+
+[features]
+default = []
+# Serve the SSR frontend from this binary (production); without it the
+# binary is the dev API server (axum only, fast builds, stable state).
+frontend = ["dep:tauri-leptos-ui"]
 
 [lints]
 workspace = true

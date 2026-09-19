@@ -20,7 +20,17 @@ tauri-build.workspace = true
 tauri.workspace = true
 tracing.workspace = true
 tauri-leptos-core.workspace = true
+tauri-leptos-ui = { path = "../crates/ui", features = ["ssr"], optional = true }
+
+# Mobile is always in-process: no watch server to attach to on a device.
+[target.'cfg(target_os = "android")'.dependencies]
 tauri-leptos-ui = { path = "../crates/ui", features = ["ssr"] }
+
+[features]
+default = []
+# In-process SSR server (production desktop: `cargo tauri build -f ssr`).
+# Without it (desktop dev) the webview attaches to `cargo leptos watch`.
+ssr = ["dep:tauri-leptos-ui"]
 
 [lints]
 workspace = true

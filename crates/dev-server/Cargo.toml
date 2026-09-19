@@ -1,0 +1,17 @@
+[package]
+name = "tauri-leptos-dev-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+axum.workspace = true
+axum-reverse-proxy.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tauri-leptos-core.workspace = true
+tauri-leptos-ui = { path = "../ui", features = ["ssr"] }
+
+[lints]
+workspace = true

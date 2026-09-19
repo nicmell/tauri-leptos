@@ -24,8 +24,9 @@ pub fn leptos_options(site_root: &Path, addr: SocketAddr) -> LeptosOptions {
         .build()
 }
 
-/// The complete application router for a given leptos configuration.
-pub fn router(options: LeptosOptions) -> Router {
+/// SSR routes + hydration assets only — the dev server mounts this and
+/// proxies the API elsewhere.
+pub fn leptos_router(options: LeptosOptions) -> Router {
     let routes = generate_route_list(App);
     Router::new()
         .leptos_routes(&options, routes, {
@@ -34,5 +35,9 @@ pub fn router(options: LeptosOptions) -> Router {
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
         .with_state(options)
-        .merge(tauri_leptos_core::server::api_router())
+}
+
+/// The complete application router (production): SSR + the core API.
+pub fn router(options: LeptosOptions) -> Router {
+    leptos_router(options).merge(tauri_leptos_core::server::api_router())
 }

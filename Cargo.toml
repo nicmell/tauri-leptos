@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/app-cli", "crates/app-core", "crates/ui", "src-tauri"]
+members = [
+  "crates/app-cli",
+  "crates/app-core",
+  "crates/dev-server",
+  "crates/ui",
+  "src-tauri",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -37,6 +43,7 @@ console_error_panic_hook = "0.1.7"
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
 tower = { version = "0.5", features = ["util"] }
+axum-reverse-proxy = "2.2"
 clap = { version = "4.6", features = ["derive"] }
 tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }
@@ -60,7 +67,7 @@ strip = true
 
 [[workspace.metadata.leptos]]
 name = "tauri-leptos"
-bin-package = "tauri-leptos-cli"
+bin-package = "tauri-leptos-dev-server"
 lib-package = "tauri-leptos-ui"
 site-root = "target/site"
 site-pkg-dir = "pkg"

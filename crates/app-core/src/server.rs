@@ -71,7 +71,17 @@ pub async fn shutdown_signal() {
 pub fn api_router() -> axum::Router {
     axum::Router::new()
         .route("/api/hello", get(hello))
+        .route("/api/counter", get(counter))
         .route("/ws", get(ws_upgrade))
+}
+
+/// In-memory state marker: proves across dev rebuilds that the API server
+/// process was not restarted (the count survives UI changes).
+async fn counter() -> Json<serde_json::Value> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+    let value = COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    Json(serde_json::json!({ "count": value }))
 }
 
 #[derive(Deserialize)]

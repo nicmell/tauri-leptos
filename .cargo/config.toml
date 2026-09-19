@@ -1,0 +1,6 @@
+[env]
+# leptos decides asset names (e.g. pkg/<name>.wasm vs the wasm-bindgen
+# default <name>_bg.wasm) from this compile-time env var. cargo-leptos
+# sets it for its own builds; setting it here keeps plain cargo builds
+# (cli --features frontend, tauri build -f ssr, android) consistent.
+LEPTOS_OUTPUT_NAME = "tauri-leptos"

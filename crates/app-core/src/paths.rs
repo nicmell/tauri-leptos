@@ -111,6 +111,17 @@ impl AppPaths {
         self
     }
 
+    /// Default frontend bundle location for the standalone server:
+    /// FHS share dir on Linux (populated by the install script), the
+    /// cargo-leptos output during development elsewhere.
+    pub fn default_site_root() -> PathBuf {
+        if cfg!(target_os = "linux") {
+            PathBuf::from("/usr/local/share/tauri-leptos/site")
+        } else {
+            PathBuf::from("target/site")
+        }
+    }
+
     /// Create every directory that does not exist yet.
     pub fn ensure_dirs(&self) -> io::Result<()> {
         for dir in [

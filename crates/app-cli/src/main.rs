@@ -98,7 +98,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let app = {
                 let site_root = site_root
                     .or_else(|| config.site_root.clone())
-                    .unwrap_or_else(|| PathBuf::from("target/site"));
+                    .unwrap_or_else(AppPaths::default_site_root);
+                if !site_root.join("index.html").exists() && !site_root.join("pkg").exists() {
+                    tracing::warn!(
+                        site_root = %site_root.display(),
+                        "site root looks empty - pass --site-root or populate it"
+                    );
+                }
                 tracing::info!(site_root = %site_root.display(), "frontend enabled");
                 let leptos_options = tauri_leptos_ui::server::leptos_options(&site_root, listen);
                 tauri_leptos_ui::server::router(leptos_options)

@@ -1,0 +1,11 @@
+{
+  "build": {
+    "beforeBuildCommand": "cd .. && cargo leptos build --release && scripts/pack-site.sh",
+    "beforeDevCommand": "cd .. && cargo leptos build && scripts/pack-site.sh"
+  },
+  "bundle": {
+    "resources": {
+      "../target/site.tar": "site.tar"
+    }
+  }
+}

@@ -4334,6 +4334,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-leptos-core"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+]
+
+[[package]]
 name = "tauri-leptos-ui"
 version = "0.1.0"
 dependencies = [

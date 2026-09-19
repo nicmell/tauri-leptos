@@ -62,6 +62,12 @@ compile time, and only cargo-leptos builds would otherwise have it set —
 plain `cargo build` would emit wasm-bindgen's `_bg.wasm` name and 404.
 `hash-files` stays off; cache-busting can come later via headers.
 
+One matching rule follows from cargo-leptos's hot-reload
+instrumentation: a **dev** `cargo leptos build` produces markup/wasm
+only its own dev-server can hydrate against. Any server built with
+plain cargo (cli `--features frontend`, the Tauri shells) must serve a
+**release** site (`cargo leptos build --release`) or hydration panics.
+
 ## Config
 
 `config.toml` in the app config dir (seeded with defaults on first run):

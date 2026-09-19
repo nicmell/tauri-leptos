@@ -56,8 +56,10 @@ jobs:
       - name: Install cargo-leptos
         run: cargo binstall -y cargo-leptos
       - name: Build frontend and server
+        # release site: dev cargo-leptos builds carry hot-reload
+        # instrumentation only its own dev-server can hydrate against
         run: |
-          cargo leptos build
+          cargo leptos build --release
           cargo build -p tauri-leptos-cli --features frontend
       - name: Hydration smoke (headless chrome)
         run: node scripts/e2e-smoke.mjs

@@ -2,8 +2,9 @@
 // Hydration smoke test over raw CDP: boots the frontend-enabled server,
 // loads the page in headless Chrome, clicks the server-fn and WebSocket
 // demo buttons, and asserts both answers appear in the DOM.
-// Prerequisites: `cargo leptos build` and
-// `cargo build -p tauri-leptos-cli --features frontend`.
+// Prerequisites: `cargo leptos build --release` (dev builds carry
+// hot-reload instrumentation only the dev-server can hydrate against)
+// and `cargo build -p tauri-leptos-cli --features frontend`.
 import { spawn, execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -124,32 +125,34 @@ await command("Runtime.enable");
 await command("Network.enable");
 await command("Page.navigate", { url: `http://127.0.0.1:${PORT}/` });
 
-// 3. wait for hydration (buttons become responsive once wasm attached)
+// 3. wait for the page, then for the explicit hydration marker set by
+// ui::hydrate() — no interaction before it: poking the DOM while tachys
+// walks it for hydration corrupts the node matching (CI runners
+// instantiate debug wasm slowly enough to hit that window).
 await until(
   "page render",
   async () => (await evaluate("document.querySelector('h1')?.textContent")) === "Welcome to Tauri + Leptos",
+);
+await until(
+  "hydration marker",
+  async () => (await evaluate("document.body.dataset.hydrated")) === "true",
+  90000,
 );
 const click = (label) =>
   evaluate(
     `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(label)})?.click(), true`,
   );
 
-// hydration has no explicit signal: click until the reactive output
-// appears (generous timeout — CI runners instantiate debug wasm slowly)
+await click("Server fn greet");
 await until(
-  "server fn answer (hydration)",
-  async () => {
-    await click("Server fn greet");
-    return (await evaluate("document.body.textContent")).includes("rendered by a server function");
-  },
-  60000,
+  "server fn answer",
+  async () => (await evaluate("document.body.textContent")).includes("rendered by a server function"),
+  30000,
 );
+await click("WebSocket echo");
 await until(
   "websocket echo",
-  async () => {
-    await click("WebSocket echo");
-    return (await evaluate("document.body.textContent")).includes("echo: ping from the ui");
-  },
+  async () => (await evaluate("document.body.textContent")).includes("echo: ping from the ui"),
   30000,
 );
 

@@ -62,6 +62,35 @@ jobs:
       - name: Hydration smoke (headless chrome)
         run: node scripts/e2e-smoke.mjs
 
+  release-dry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install aarch64 cross linker
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown, aarch64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-leptos
+        run: cargo binstall -y cargo-leptos
+      - name: Build frontend (release)
+        run: cargo leptos build --release
+      - name: Build server (host release)
+        run: cargo build --release -p tauri-leptos-cli --features frontend
+      - name: Build server (aarch64 release)
+        run: cargo build --release -p tauri-leptos-cli --features frontend --target aarch64-unknown-linux-gnu
+      - name: Collect release pair
+        run: |
+          mkdir -p dist-artifact
+          cp target/aarch64-unknown-linux-gnu/release/tauri-leptos-cli dist-artifact/
+          cp -r target/site dist-artifact/site
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tauri-leptos-aarch64
+          path: dist-artifact/
+
   deny:
     runs-on: ubuntu-latest
     steps:

@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Dev: UI + Server" type="CompoundRunConfigurationType">
-    <toRun name="Serve" type="CargoCommandRunConfiguration" />
+    <toRun name="Serve (watch)" type="ShConfigurationType" />
     <toRun name="Trunk Serve" type="ShConfigurationType" />
     <method v="2" />
   </configuration>

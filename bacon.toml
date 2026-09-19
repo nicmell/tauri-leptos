@@ -21,8 +21,18 @@ need_stdout = true
 command = ["cargo", "doc", "--workspace", "--no-deps"]
 need_stdout = false
 
+# Headless server with restart-on-change; pair with `trunk serve` for
+# the full browser dev loop.
+[jobs.serve]
+command = ["cargo", "run", "-p", "tauri-leptos-cli", "--", "serve", "--app-dir", "appdir"]
+need_stdout = true
+background = false
+on_change_strategy = "kill_then_restart"
+allow_warnings = true
+
 [keybindings]
 c = "job:clippy"
 w = "job:clippy-wasm"
 t = "job:test"
 d = "job:doc"
+s = "job:serve"

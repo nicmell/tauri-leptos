@@ -38,15 +38,28 @@ from disk, release builds embed it).
 
 ## Local development
 
-**UI iteration (browser, hot reload)** — two terminals:
+**Desktop — one command, full watch:**
 
 ```bash
-cargo run -p tauri-leptos-cli -- serve --app-dir appdir   # backend on :3000
-trunk serve                                               # UI on :1420, /api + /ws proxied
+cargo tauri dev
 ```
 
-**Desktop**: `cargo tauri dev`. After a UI edit: `trunk build` and
-reload the window (no Rust rebuild needed in debug).
+Tauri watches the Rust side (rebuild + relaunch on change; `crates/ui`,
+`dist/` and `appdir/` are excluded via `.taurignore`), while trunk —
+spawned as `beforeDevCommand` — hot-reloads the UI. In dev the webview
+loads from trunk (`devUrl` :1420) and `/api`/`/ws` are proxied to the
+app's server on the fixed port 3000; release builds are single-origin
+on an ephemeral port with everything embedded.
+
+**Browser (headless)** — two terminals (or the RustRover compound):
+
+```bash
+bacon serve      # backend on :3000, restart on Rust changes
+trunk serve      # UI on :1420, /api + /ws proxied
+```
+
+Note: desktop dev and the headless server both want port 3000 — run
+one at a time, or pass `--listen` to the headless one.
 
 **Reproducible runs**: `--app-dir appdir` (or
 `TAURI_LEPTOS_APP_DIR=$PWD/appdir`) pins config/data/cache/logs under

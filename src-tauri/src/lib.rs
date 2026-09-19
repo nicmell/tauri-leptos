@@ -10,9 +10,18 @@ pub fn run() {
     static LOG_GUARD: OnceLock<LogGuard> = OnceLock::new();
     let _ = LOG_GUARD.set(logging::init(None));
 
-    // Bind before the runtime starts so the window URL can carry the
-    // actual ephemeral port.
-    let server = Server::bind(("127.0.0.1", 0)).expect("bind the local http server");
+    // Desktop dev (`cargo tauri dev`): the webview loads devUrl (trunk on
+    // :1420, hot reload) which proxies /api and /ws here — so the port must
+    // be the fixed proxy target. Everywhere else the webview loads straight
+    // from this server on an ephemeral port. Android always takes the
+    // embedded route: devUrl would resolve to the device itself.
+    let dev_desktop = tauri::is_dev() && !cfg!(target_os = "android");
+    let addr = if dev_desktop {
+        ("127.0.0.1", 3000)
+    } else {
+        ("127.0.0.1", 0)
+    };
+    let server = Server::bind(addr).expect("bind the local http server");
     let port = server.local_addr().expect("read the bound address").port();
 
     tauri::Builder::default()
@@ -38,8 +47,11 @@ pub fn run() {
                 .first()
                 .cloned()
                 .ok_or("missing window config")?;
-            window_config.url =
-                tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse()?);
+            if !dev_desktop {
+                // In dev the default App url resolves to devUrl on its own.
+                window_config.url =
+                    tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse()?);
+            }
             tauri::WebviewWindowBuilder::from_config(app.handle(), &window_config)?.build()?;
             Ok(())
         })

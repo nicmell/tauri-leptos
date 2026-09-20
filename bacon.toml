@@ -24,7 +24,7 @@ need_stdout = false
 # The API server with restart-on-change; pair with `cargo leptos watch` for
 # the full dev loop (or just run mprocs).
 [jobs.serve]
-command = ["cargo", "run", "-p", "tauri-leptos-cli", "--", "serve", "--app-dir", "appdir"]
+command = ["cargo", "run", "-p", "tauri-leptos-cli", "--", "serve", "--headless", "--app-dir", "appdir"]
 need_stdout = true
 background = false
 on_change_strategy = "kill_then_restart"

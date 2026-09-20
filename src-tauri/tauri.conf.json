@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.nick.tauri-leptos",
   "build": {
-    "beforeBuildCommand": "trunk build --config ../Trunk.toml",
-    "beforeDevCommand": "trunk serve --config ../Trunk.toml",
-    "devUrl": "http://localhost:1420"
+    "beforeDevCommand": "cd .. && cargo leptos watch",
+    "beforeBuildCommand": "cd .. && cargo leptos build --release",
+    "devUrl": "http://127.0.0.1:3000"
   },
   "app": {
     "withGlobalTauri": false,
@@ -16,7 +16,7 @@
         "title": "tauri-leptos",
         "width": 800,
         "height": 600,
-        "create": false
+        "url": "http://127.0.0.1:3000"
       }
     ],
     "security": {
@@ -26,6 +26,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "../target/site/": "site/"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

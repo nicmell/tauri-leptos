@@ -24,6 +24,8 @@ serde.workspace = true
 console_error_panic_hook = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 leptos_axum = { workspace = true, optional = true }
+mime_guess = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
@@ -40,6 +42,8 @@ ssr = [
   "leptos_meta/ssr",
   "leptos_router/ssr",
   "dep:leptos_axum",
+  "dep:mime_guess",
+  "dep:tokio-util",
   "dep:axum",
   "dep:tokio",
   "dep:tracing",

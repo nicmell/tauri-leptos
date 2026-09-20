@@ -23,8 +23,11 @@ fn start_server(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let listen = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let options = tauri_leptos_ui::server::leptos_options(&site_root, listen);
-    let router = tauri_leptos_ui::server::router(options);
+    let options = tauri_leptos_ui::server::leptos_options(listen);
+    let router = tauri_leptos_ui::server::router(
+        options,
+        std::sync::Arc::new(tauri_leptos_ui::server::DirAssets(site_root)),
+    );
     let server = Server::bind(listen)?;
     tracing::info!(site_root = %site_root.display(), "in-process server on {listen}");
     tauri::async_runtime::spawn(async move {

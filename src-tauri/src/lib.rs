@@ -2,9 +2,10 @@ use std::sync::OnceLock;
 
 use tauri_leptos_core::logging::{self, LogGuard};
 
-/// The server ships in production desktop builds (feature `ssr`) and
-/// always on Android (no watch to attach to on a device).
-#[cfg(any(feature = "ssr", target_os = "android"))]
+/// The server ships in production desktop builds (feature `ssr`) and in
+/// Android builds. `tauri android dev` (cfg(dev)) attaches to the host's
+/// `cargo leptos watch` through `adb reverse` instead, like desktop dev.
+#[cfg(any(feature = "ssr", all(target_os = "android", not(dev))))]
 mod server {
     use std::io;
     use std::path::PathBuf;
@@ -91,12 +92,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            #[cfg(any(feature = "ssr", target_os = "android"))]
+            #[cfg(any(feature = "ssr", all(target_os = "android", not(dev))))]
             server::start(app)?;
-            #[cfg(not(any(feature = "ssr", target_os = "android")))]
+            #[cfg(not(any(feature = "ssr", all(target_os = "android", not(dev)))))]
             {
                 let _ = app;
-                tracing::info!("no in-process server; window attaches to cargo leptos watch");
+                tracing::info!(
+                    "no in-process server; window attaches to cargo leptos watch \
+                     (android dev: via adb reverse)"
+                );
             }
             Ok(())
         })

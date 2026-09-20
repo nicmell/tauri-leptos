@@ -13,9 +13,10 @@ rustup target add aarch64-linux-android armv7-linux-androideabi \
 
 ## How the app runs on Android
 
-The Tauri lib always starts the merged single-origin server in-process
-(the `ssr` code path is unconditional on Android) and the window loads
-`http://127.0.0.1:3000` like everywhere else. Assets are served
+In production builds the Tauri lib starts the merged single-origin
+server in-process (the `ssr` code path is unconditional on Android
+outside dev) and the window loads `http://127.0.0.1:3000` like
+everywhere else. Assets are served
 **straight from the APK per request**: the `SiteAssets` implementation
 opens `resource_dir()/site/<path>` through the fs plugin's Rust API,
 which turns APK assets into real file descriptors (compressed assets
@@ -36,18 +37,40 @@ manifest reference. `app/src/main/assets/` is build output
 (`inject_resources`) and is gitignored. Re-running `android init` can
 overwrite the hand edits — review the git diff afterwards.
 
-## Develop / build
+## Develop
+
+Android dev attaches to the host's dev processes like desktop dev: no
+in-process server (`cfg(dev)` skips it), no release site build. The
+device reaches the host through `adb reverse` — 3000 (watch), 3001
+(api), 3002 (leptos reload socket). With an emulator or device
+connected and the api server running (`mprocs` or the cli
+`serve --headless`):
 
 ```bash
-cargo tauri android dev                          # emulator or device
+./scripts/android-dev.sh                         # reverses + android dev
+```
+
+One dev-only quirk: on mobile Tauri proxies the page through
+`http://tauri.localhost` whenever the window URL matches the devUrl —
+and that proxy drops POST bodies (`shouldInterceptRequest` has none),
+breaking server functions. The config sidesteps the proxy by offsetting
+the devUrl host (`http://localhost:3000` vs the window's fixed
+`http://127.0.0.1:3000`): the match fails, the webview loads the watch
+directly through the reverse — same origin, working server fns and
+live reload, exactly like desktop dev. Desktop ignores the offset (no
+proxy there, and the CLI's dev-server wait resolves `localhost` fine),
+so one `tauri.conf.json` covers both platforms — no android overlay.
+
+## Build
+
+```bash
 cargo tauri android build --debug --target aarch64
 cargo tauri android build                        # release (needs signing)
 ```
 
-The android config overlay (`tauri.android.conf.json`) builds the
-**release** site before compiling — dev cargo-leptos builds only
-hydrate against their own watch process. There is no UI hot reload on
-device: rebuild to see frontend changes.
+The shared `beforeBuildCommand` builds the **release** site before
+compiling — dev cargo-leptos builds only hydrate against their own
+watch process.
 
 Logs (server startup, asset serving, panics) go to logcat:
 

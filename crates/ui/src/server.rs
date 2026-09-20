@@ -59,6 +59,9 @@ pub fn leptos_options(addr: SocketAddr) -> LeptosOptions {
     LeptosOptions::builder()
         .output_name(OUTPUT_NAME)
         .site_addr(addr)
+        // Must match `reload-port` in the cargo-leptos metadata: the
+        // AutoReload script connects to it (dev builds only).
+        .reload_port(3002)
         .build()
 }
 

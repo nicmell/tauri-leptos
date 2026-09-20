@@ -1,6 +1,0 @@
-{
-  "build": {
-    "beforeDevCommand": "cd .. && cargo leptos build --release",
-    "beforeBuildCommand": "cd .. && cargo leptos build --release"
-  }
-}

@@ -1,8 +1,40 @@
 use std::sync::OnceLock;
 
-use tauri::Manager;
 use tauri_leptos_core::logging::{self, LogGuard};
-use tauri_leptos_core::server::Server;
+
+/// The window URL is fixed in tauri.conf.json (`http://127.0.0.1:3000`):
+/// in dev that is `cargo leptos watch`, in production the in-process
+/// single-origin server started here.
+#[cfg(feature = "ssr")]
+fn start_server(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use std::net::SocketAddr;
+    use std::path::PathBuf;
+
+    use tauri::Manager;
+    use tauri_leptos_core::server::Server;
+
+    // Bundled resources when present, the cargo-leptos output otherwise
+    // (unbundled runs from the workspace).
+    let bundled = app.path().resource_dir()?.join("site");
+    let site_root = if bundled.join("pkg").exists() {
+        bundled
+    } else {
+        PathBuf::from("target/site")
+    };
+
+    let listen = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let options = tauri_leptos_ui::server::leptos_options(&site_root, listen);
+    let router = tauri_leptos_ui::server::router(options);
+    let server = Server::bind(listen)?;
+    tracing::info!(site_root = %site_root.display(), "in-process server on {listen}");
+    tauri::async_runtime::spawn(async move {
+        // No shutdown signal: the server lives as long as the process.
+        if let Err(e) = server.serve(router, std::future::pending()).await {
+            tracing::error!("http server exited: {e}");
+        }
+    });
+    Ok(())
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -10,49 +42,15 @@ pub fn run() {
     static LOG_GUARD: OnceLock<LogGuard> = OnceLock::new();
     let _ = LOG_GUARD.set(logging::init(None));
 
-    // Desktop dev (`cargo tauri dev`): the webview loads devUrl (trunk on
-    // :1420, hot reload) which proxies /api and /ws here — so the port must
-    // be the fixed proxy target. Everywhere else the webview loads straight
-    // from this server on an ephemeral port. Android always takes the
-    // embedded route: devUrl would resolve to the device itself.
-    let dev_desktop = tauri::is_dev() && !cfg!(target_os = "android");
-    let addr = if dev_desktop {
-        ("127.0.0.1", 3000)
-    } else {
-        ("127.0.0.1", 0)
-    };
-    let server = Server::bind(addr).expect("bind the local http server");
-    let port = server.local_addr().expect("read the bound address").port();
-
     tauri::Builder::default()
-        .setup(move |app| {
-            tauri::async_runtime::spawn(async move {
-                // No shutdown signal: the server lives as long as the process.
-                if let Err(e) = server.serve(std::future::pending()).await {
-                    tracing::error!("http server exited: {e}");
-                }
-            });
-
-            let resolver = app.path();
-            tracing::info!(
-                app_config_dir = ?resolver.app_config_dir(),
-                app_log_dir = ?resolver.app_log_dir(),
-                "tauri path resolver"
-            );
-
-            let mut window_config = app
-                .config()
-                .app
-                .windows
-                .first()
-                .cloned()
-                .ok_or("missing window config")?;
-            if !dev_desktop {
-                // In dev the default App url resolves to devUrl on its own.
-                window_config.url =
-                    tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse()?);
+        .setup(|app| {
+            #[cfg(feature = "ssr")]
+            start_server(app)?;
+            #[cfg(not(feature = "ssr"))]
+            {
+                let _ = app;
+                tracing::info!("no in-process server; window attaches to cargo leptos watch");
             }
-            tauri::WebviewWindowBuilder::from_config(app.handle(), &window_config)?.build()?;
             Ok(())
         })
         .run(tauri::generate_context!())

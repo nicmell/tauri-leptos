@@ -10,7 +10,7 @@ command = ["cargo", "clippy", "--workspace", "--all-targets"]
 need_stdout = false
 
 [jobs.clippy-wasm]
-command = ["cargo", "clippy", "-p", "tauri-leptos-ui", "--target", "wasm32-unknown-unknown"]
+command = ["cargo", "clippy", "-p", "tauri-leptos-ui", "--features", "hydrate", "--target", "wasm32-unknown-unknown"]
 need_stdout = false
 
 [jobs.test]
@@ -21,8 +21,8 @@ need_stdout = true
 command = ["cargo", "doc", "--workspace", "--no-deps"]
 need_stdout = false
 
-# Headless server with restart-on-change; pair with `trunk serve` for
-# the full browser dev loop.
+# The API server with restart-on-change; pair with `cargo leptos watch` for
+# the full dev loop (or just run mprocs).
 [jobs.serve]
 command = ["cargo", "run", "-p", "tauri-leptos-cli", "--", "serve", "--app-dir", "appdir"]
 need_stdout = true

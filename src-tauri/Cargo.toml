@@ -20,6 +20,13 @@ tauri-build.workspace = true
 tauri.workspace = true
 tracing.workspace = true
 tauri-leptos-core.workspace = true
+tauri-leptos-ui = { path = "../crates/ui", features = ["ssr"], optional = true }
+
+[features]
+default = []
+# In-process single-origin SSR server (production: `cargo tauri build -f ssr`).
+# Without it (dev) the webview attaches to `cargo leptos watch` on :3000.
+ssr = ["dep:tauri-leptos-ui"]
 
 [lints]
 workspace = true

@@ -25,20 +25,24 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - uses: cargo-bins/cargo-binstall@main
-      - name: Install leptosfmt, nextest and trunk
-        run: cargo binstall -y leptosfmt cargo-nextest trunk
-      - name: Build frontend
-        run: trunk build
+      - name: Install leptosfmt, nextest and cargo-leptos
+        run: cargo binstall -y leptosfmt cargo-nextest cargo-leptos
+      - name: Build frontend and server
+        run: cargo leptos build
       - name: rustfmt
         run: cargo fmt --all --check
       - name: leptosfmt
         run: leptosfmt --check crates/ui/src
       - name: clippy (native)
         run: cargo clippy --workspace --all-targets
-      - name: clippy (wasm)
-        run: cargo clippy -p tauri-leptos-ui --target wasm32-unknown-unknown
+      - name: clippy (ui ssr)
+        run: cargo clippy -p tauri-leptos-ui --features ssr
+      - name: clippy (ui hydrate, wasm)
+        run: cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
       - name: tests
         run: cargo nextest run --workspace --no-tests=pass
+      - name: tests (ui ssr)
+        run: cargo nextest run -p tauri-leptos-ui --features ssr --no-tests=pass
 
   deny:
     runs-on: ubuntu-latest

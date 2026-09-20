@@ -2,38 +2,85 @@ use std::sync::OnceLock;
 
 use tauri_leptos_core::logging::{self, LogGuard};
 
-/// The window URL is fixed in tauri.conf.json (`http://127.0.0.1:3000`):
-/// in dev that is `cargo leptos watch`, in production the in-process
-/// single-origin server started here.
-#[cfg(feature = "ssr")]
-fn start_server(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    use std::net::SocketAddr;
+/// The server ships in production desktop builds (feature `ssr`) and in
+/// Android builds. `tauri android dev` (cfg(dev)) attaches to the host's
+/// `cargo leptos watch` through `adb reverse` instead, like desktop dev.
+#[cfg(any(feature = "ssr", all(target_os = "android", not(dev))))]
+mod server {
+    use std::io;
     use std::path::PathBuf;
+    use std::sync::Arc;
 
     use tauri::Manager;
-    use tauri_leptos_core::server::Server;
+    use tauri_leptos_ui::server::SiteAssets;
 
-    // Bundled resources when present, the cargo-leptos output otherwise
-    // (unbundled runs from the workspace).
-    let bundled = app.path().resource_dir()?.join("site");
-    let site_root = if bundled.join("pkg").exists() {
-        bundled
-    } else {
-        PathBuf::from("target/site")
-    };
+    /// Site assets from the Tauri resource store, one code path for the
+    /// desktop bundle and the Android APK: the fs plugin's Rust API opens
+    /// plain files on desktop and APK assets (via file descriptor) on
+    /// Android, always yielding a real `std::fs::File`.
+    struct TauriAssets {
+        app: tauri::AppHandle,
+        base: PathBuf,
+    }
 
-    let listen = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let options = tauri_leptos_ui::server::leptos_options(&site_root, listen);
-    let router = tauri_leptos_ui::server::router(options);
-    let server = Server::bind(listen)?;
-    tracing::info!(site_root = %site_root.display(), "in-process server on {listen}");
-    tauri::async_runtime::spawn(async move {
-        // No shutdown signal: the server lives as long as the process.
-        if let Err(e) = server.serve(router, std::future::pending()).await {
-            tracing::error!("http server exited: {e}");
+    impl SiteAssets for TauriAssets {
+        fn open(&self, rel: &str) -> io::Result<std::fs::File> {
+            use tauri_plugin_fs::FsExt;
+            let path = std::path::Path::new(rel);
+            if path
+                .components()
+                .any(|c| !matches!(c, std::path::Component::Normal(_)))
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid asset path",
+                ));
+            }
+            let mut open_options = tauri_plugin_fs::OpenOptions::new();
+            open_options.read(true);
+            self.app
+                .fs()
+                .open(self.base.join(path), open_options)
+                .map_err(io::Error::other)
         }
-    });
-    Ok(())
+    }
+
+    /// The window URL is fixed in tauri.conf.json (`http://127.0.0.1:3000`);
+    /// this serves it: SSR pages + API on one origin.
+    pub fn start(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+        use std::net::SocketAddr;
+
+        use tauri_leptos_core::server::Server;
+
+        let resource_site = app.path().resource_dir()?.join("site");
+        // Desktop dev with -f ssr runs unbundled from the workspace; on
+        // Android the resource path is an asset:// URI where exists()
+        // cannot probe, so the resource store is always used there.
+        let assets: Arc<dyn SiteAssets> =
+            if cfg!(target_os = "android") || resource_site.join("pkg").exists() {
+                tracing::info!(base = %resource_site.display(), "serving bundled resources");
+                Arc::new(TauriAssets {
+                    app: app.handle().clone(),
+                    base: resource_site,
+                })
+            } else {
+                tracing::info!("serving workspace target/site (unbundled run)");
+                Arc::new(tauri_leptos_ui::server::DirAssets("target/site".into()))
+            };
+
+        let listen = SocketAddr::from(([127, 0, 0, 1], 3000));
+        let options = tauri_leptos_ui::server::leptos_options(listen);
+        let router = tauri_leptos_ui::server::router(options, assets);
+        let server = Server::bind(listen)?;
+        tracing::info!(%listen, "in-process server");
+        tauri::async_runtime::spawn(async move {
+            // No shutdown signal: the server lives as long as the process.
+            if let Err(e) = server.serve(router, std::future::pending()).await {
+                tracing::error!("http server exited: {e}");
+            }
+        });
+        Ok(())
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -43,13 +90,17 @@ pub fn run() {
     let _ = LOG_GUARD.set(logging::init(None));
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            #[cfg(feature = "ssr")]
-            start_server(app)?;
-            #[cfg(not(feature = "ssr"))]
+            #[cfg(any(feature = "ssr", all(target_os = "android", not(dev))))]
+            server::start(app)?;
+            #[cfg(not(any(feature = "ssr", all(target_os = "android", not(dev)))))]
             {
                 let _ = app;
-                tracing::info!("no in-process server; window attaches to cargo leptos watch");
+                tracing::info!(
+                    "no in-process server; window attaches to cargo leptos watch \
+                     (android dev: via adb reverse)"
+                );
             }
             Ok(())
         })

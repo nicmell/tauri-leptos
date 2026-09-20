@@ -21,6 +21,11 @@ tauri.workspace = true
 tracing.workspace = true
 tauri-leptos-core.workspace = true
 tauri-leptos-ui = { path = "../crates/ui", features = ["ssr"], optional = true }
+tauri-plugin-fs.workspace = true
+
+# Mobile is always in-process: no watch server to attach to on a device.
+[target.'cfg(target_os = "android")'.dependencies]
+tauri-leptos-ui = { path = "../crates/ui", features = ["ssr"] }
 
 [features]
 default = []

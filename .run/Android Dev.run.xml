@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Build Android" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="export NDK_HOME=${NDK_HOME:-$(ls -d $HOME/Library/Android/sdk/ndk/* | sort -V | tail -n1)}; cargo tauri android build" />
+  <configuration default="false" name="Android Dev" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value="export NDK_HOME=${NDK_HOME:-$(ls -d $HOME/Library/Android/sdk/ndk/* | sort -V | tail -n1)}; ./scripts/android-dev.sh" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />

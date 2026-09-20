@@ -7,7 +7,6 @@
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::net::SocketAddr;
-    use std::path::Path;
 
     use tauri_leptos_core::config::AppConfig;
     use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
@@ -22,8 +21,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_default()
         .api_addr;
     let listen = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let options = tauri_leptos_ui::server::leptos_options(Path::new("target/site"), listen);
-    let app = tauri_leptos_ui::server::leptos_router(options, Some(format!("http://{api_addr}")));
+    let options = tauri_leptos_ui::server::leptos_options(listen);
+    let app = tauri_leptos_ui::server::leptos_router(
+        options,
+        Some(format!("http://{api_addr}")),
+        std::sync::Arc::new(tauri_leptos_ui::server::DirAssets("target/site".into())),
+    );
 
     let srv = server::Server::bind(listen)?;
     tracing::info!(addr = %srv.local_addr()?, api = %api_addr, "frontend server up");

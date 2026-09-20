@@ -70,5 +70,4 @@ Tauri.
 
 ## Out of scope right now
 
-Android (`src-tauri/gen/` predates this flow — do not build it from
-this series), e2e.
+e2e; iOS (never started).

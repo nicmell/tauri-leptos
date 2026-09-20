@@ -28,7 +28,13 @@ pub fn run() {
         .setup(move |app| {
             tauri::async_runtime::spawn(async move {
                 // No shutdown signal: the server lives as long as the process.
-                if let Err(e) = server.serve(std::future::pending()).await {
+                if let Err(e) = server
+                    .serve(
+                        tauri_leptos_core::server::api_router(),
+                        std::future::pending(),
+                    )
+                    .await
+                {
                     tracing::error!("http server exited: {e}");
                 }
             });

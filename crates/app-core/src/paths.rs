@@ -9,7 +9,16 @@ use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::APP_IDENTIFIER;
+use crate::{APP_DIR_ENV, APP_IDENTIFIER};
+
+/// Read the app-dir env var; an empty value must act as unset, which is
+/// why this is a manual read and not clap's `env` attribute.
+pub fn app_dir_from_env() -> Option<PathBuf> {
+    env::var(APP_DIR_ENV)
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .map(PathBuf::from)
+}
 
 /// The app's directories, one field per Tauri path-API name.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -4,7 +4,7 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn hello_greets_by_name() {
-    let response = tauri_leptos_core::server::router()
+    let response = tauri_leptos_core::server::api_router()
         .oneshot(
             Request::get("/api/hello?name=Nick")
                 .body(Body::empty())
@@ -25,7 +25,7 @@ async fn hello_greets_by_name() {
 
 #[tokio::test]
 async fn hello_defaults_to_world() {
-    let response = tauri_leptos_core::server::router()
+    let response = tauri_leptos_core::server::api_router()
         .oneshot(
             Request::get("/api/hello")
                 .body(Body::empty())

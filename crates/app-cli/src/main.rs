@@ -66,7 +66,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let srv = server::Server::bind(listen)?;
             tracing::info!(addr = %srv.local_addr()?, "serving");
             tracing::debug!(?paths, "resolved app paths");
-            srv.serve(server::shutdown_signal()).await?;
+            srv.serve(server::api_router(), server::shutdown_signal())
+                .await?;
         }
     }
     Ok(())

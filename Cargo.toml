@@ -19,23 +19,27 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+# fires (clippy >= 1.98) inside #[server]-generated trait impls, which an
+# item-level allow cannot reach
+unused_async_trait_impl = "allow"
 
 [workspace.dependencies]
 # frontend
-leptos = { version = "0.8", features = ["csr"] }
+leptos = "0.8"
+leptos_meta = "0.8"
+leptos_router = "0.8"
+leptos_axum = "0.8"
+wasm-bindgen = "0.2"
 gloo-net = { version = "0.7", features = ["http", "websocket"] }
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "registry"] }
 tracing-web = "0.1"
-wasm-bindgen-test = "0.3"
 console_error_panic_hook = "0.1.7"
 
 # backend
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
-rust-embed = { version = "8", features = ["interpolate-folder-path"] }
-mime_guess = "2"
 tower = { version = "0.5", features = ["util"] }
 clap = { version = "4.6", features = ["derive"] }
 tauri = { version = "2", features = [] }
@@ -56,3 +60,16 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+[[workspace.metadata.leptos]]
+name = "tauri-leptos"
+bin-package = "tauri-leptos-ui"
+bin-features = ["ssr"]
+lib-package = "tauri-leptos-ui"
+lib-features = ["hydrate"]
+site-root = "target/site"
+site-pkg-dir = "pkg"
+site-addr = "127.0.0.1:3000"
+# 3001 is the API server; live-reload ws stays clear of it
+reload-port = 3002
+assets-dir = "crates/ui/assets"

@@ -12,6 +12,20 @@ tower-http.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tauri-leptos-core.workspace = true
+tauri-leptos-ui = { path = "../ui", features = ["ssr"] }
 
 [lints]
 workspace = true
+
+[package.metadata.deb]
+maintainer = "nicmell <nicola.melloni@slesh.it>"
+extended-description = "tauri-leptos server (SSR frontend + API) for systemd deployments"
+maintainer-scripts = "debian/"
+assets = [
+  ["target/release/tauri-leptos-cli", "usr/bin/", "755"],
+  ["../../target/site/**/*", "usr/share/tauri-leptos/site/", "644"],
+]
+
+# Empty table = defaults: enable+start on install, stop+disable on
+# removal, restart after upgrade.
+[package.metadata.deb.systemd-units]

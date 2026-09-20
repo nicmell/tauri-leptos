@@ -15,4 +15,5 @@ procs:
         "--app-dir",
         "appdir",
         "serve",
+        "--headless",
       ]

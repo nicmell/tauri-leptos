@@ -1,0 +1,31 @@
+# StrudelDirt (SuperDirt) for sc-app2 — attaches to scsynth.service on :57110
+# and listens for /dirt/* on :57120. Install to /etc/systemd/system/ (see
+# raspberry-pi.md). Edit User/Group and the repo path to match your checkout.
+[Unit]
+Description=StrudelDirt (SuperDirt) for sc-app2
+After=scsynth.service
+Requires=scsynth.service
+
+[Service]
+User=nick
+Group=audio
+# `tail -f /dev/null |` keeps sclang's stdin open so it stays alive (no TTY
+# under systemd; on EOF sclang would exit and tear down SuperDirt). sclang uses
+# the service user's default config, so the Vowel + StrudelDirt quarks
+# (Quarks.install) are on the class path and the per-user startup.scd has
+# already pointed `s` at the systemd scsynth on :57110.
+ExecStart=/bin/sh -c 'tail -f /dev/null | sclang /home/nick/sc-app2/scripts/rpi/strudeldirt-attach.scd'
+# Sample library for sample-based events (bd, sn, hh, …). The value is a glob
+# SuperDirt expands itself (one bank per subdirectory). Clone the samples there:
+#   git clone --depth 1 https://github.com/tidalcycles/dirt-samples.git /home/nick/Dirt-Samples
+Environment=SC_APP_DIRT_SAMPLES=/home/nick/Dirt-Samples/*
+# Let sclang's scheduler run at realtime priority (mirrors scsynth.service).
+# Without RTPRIO, sclang logs the harmless "Couldn't set realtime scheduling
+# priority" warning; granting it tightens language-side event timing.
+LimitRTPRIO=95
+LimitMEMLOCK=infinity
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

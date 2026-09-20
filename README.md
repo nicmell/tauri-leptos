@@ -44,7 +44,8 @@ same-origin and relative.
 ## Production build
 
 ```bash
-cargo tauri build -f ssr
+cargo tauri build -f ssr          # desktop bundle
+./scripts/build-deb.sh            # Raspberry Pi deb (binary + site + systemd unit)
 ```
 
 `cargo leptos build --release` runs first automatically; the site is

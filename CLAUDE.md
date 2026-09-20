@@ -26,6 +26,7 @@ mprocs                                          # browser dev: watch :3000 + api
 cargo tauri build -f ssr                        # production bundle
 cargo leptos build                              # dev site + frontend-server
 cargo leptos build --release                    # site for plain-cargo servers
+./scripts/build-deb.sh                          # Pi deb (binary+site+unit)
 cargo check --workspace
 cargo clippy --workspace --all-targets
 cargo clippy -p tauri-leptos-ui --features ssr
@@ -46,6 +47,8 @@ bacon                                           # watch loop (c=clippy w=wasm t=
   .rs files automatically.
 - Dependencies: versions only in `workspace.dependencies`; members use
   `dep.workspace = true`. New dependencies must be ≥ 7 days old.
+- `serve` = full single-origin server (systemd/Pi); `serve --headless`
+  = api-only, the dev split half.
 - Server functions are stateless (in dev they run in the frontend
   process); state lives behind `/api` and `/ws` in the API server.
 - The frontend origin (`127.0.0.1:3000`) is fixed by design; only the
@@ -68,4 +71,4 @@ Tauri.
 ## Out of scope right now
 
 Android (`src-tauri/gen/` predates this flow — do not build it from
-this series), headless/Pi deployment, e2e.
+this series), e2e.

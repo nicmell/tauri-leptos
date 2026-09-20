@@ -9,11 +9,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::net::SocketAddr;
     use std::path::Path;
 
+    use tauri_leptos_core::config::AppConfig;
+    use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
     use tauri_leptos_core::{logging, server};
 
     let _log_guard = logging::init(None);
 
-    let api_addr = "127.0.0.1:3001";
+    // Best effort: a dev tool falls back to defaults instead of refusing.
+    let api_addr = AppPaths::resolve_standalone(app_dir_from_env().as_deref())
+        .ok()
+        .and_then(|paths| AppConfig::load(&paths).ok())
+        .unwrap_or_default()
+        .api_addr;
     let listen = SocketAddr::from(([127, 0, 0, 1], 3000));
     let options = tauri_leptos_ui::server::leptos_options(Path::new("target/site"), listen);
     let app = tauri_leptos_ui::server::leptos_router(options, Some(format!("http://{api_addr}")));

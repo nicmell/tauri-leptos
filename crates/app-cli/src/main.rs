@@ -1,21 +1,19 @@
-//! Headless entry point: the same core server the Tauri shell embeds,
-//! run as a plain unix daemon (systemd-friendly: stderr logging,
-//! *_DIRECTORY env vars honored by the paths module).
+//! The API server as a plain unix daemon (systemd-friendly: stderr
+//! logging, *_DIRECTORY env vars honored by the paths module). In dev it
+//! is the stateful half of the split: `cargo leptos watch` rebuilds the
+//! frontend while this process — and its state — stays up.
 
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use tauri_leptos_core::paths::AppPaths;
-use tauri_leptos_core::{APP_DIR_ENV, logging, server};
+use tauri_leptos_core::config::{AppConfig, CONFIG_FILE};
+use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
+use tauri_leptos_core::{logging, server};
 
 #[derive(Parser)]
-#[command(
-    name = "tauri-leptos-cli",
-    version,
-    about = "tauri-leptos headless server"
-)]
+#[command(name = "tauri-leptos-cli", version, about = "tauri-leptos api server")]
 struct Cli {
     #[arg(
         long,
@@ -31,23 +29,34 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run the HTTP server
+    /// Run the API server
     Serve {
-        #[arg(long, default_value = "127.0.0.1:3000")]
-        listen: SocketAddr,
+        /// Listen address (overrides the configured api address)
+        #[arg(long)]
+        listen: Option<SocketAddr>,
         /// Also write logs to a daily-rolling file in the app log dir
         #[arg(long)]
         log_to_file: bool,
     },
+    /// Inspect or create the configuration file
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
 }
 
-/// Read the app-dir env var; an empty value must act as unset, which is
-/// why this is a manual read and not clap's `env` attribute.
-fn app_dir_from_env() -> Option<PathBuf> {
-    std::env::var(APP_DIR_ENV)
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-        .map(PathBuf::from)
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Write the default config.toml (refuses to overwrite)
+    Write {
+        /// Target path (default: <app config dir>/config.toml)
+        path: Option<PathBuf>,
+    },
+    /// Check that a config file parses
+    Validate {
+        /// Path to check (default: <app config dir>/config.toml)
+        path: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -61,13 +70,37 @@ async fn main() -> Result<(), Box<dyn Error>> {
             listen,
             log_to_file,
         } => {
+            // Invalid config is a hard error: systemd must see the failure.
+            let config = AppConfig::load(&paths)?;
+            let listen = listen.unwrap_or(config.api_addr);
+            let log_to_file = log_to_file || config.log_to_file;
+
             let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
             paths.ensure_dirs()?;
             let srv = server::Server::bind(listen)?;
-            tracing::info!(addr = %srv.local_addr()?, "serving");
+            tracing::info!(addr = %srv.local_addr()?, "api server up");
             tracing::debug!(?paths, "resolved app paths");
             srv.serve(server::api_router(), server::shutdown_signal())
                 .await?;
+        }
+        Command::Config { action } => {
+            let default_path = || paths.app_config_dir.join(CONFIG_FILE);
+            match action {
+                ConfigAction::Write { path } => {
+                    let path = path.unwrap_or_else(default_path);
+                    if path.exists() {
+                        return Err(format!("{} already exists", path.display()).into());
+                    }
+                    AppConfig::default().seed(&path)?;
+                    println!("wrote {}", path.display());
+                }
+                ConfigAction::Validate { path } => {
+                    let path = path.unwrap_or_else(default_path);
+                    let text = std::fs::read_to_string(&path)?;
+                    AppConfig::parse(&text)?;
+                    println!("{} is valid", path.display());
+                }
+            }
         }
     }
     Ok(())

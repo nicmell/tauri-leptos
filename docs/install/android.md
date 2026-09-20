@@ -1,3 +1,5 @@
+> **Note**: this guide predates the current Leptos SSR flow and is NOT ALIGNED yet.
+
 # Android
 
 ## Prerequisites

@@ -1,3 +1,5 @@
+> **Note**: this guide predates the current Leptos SSR flow and is NOT ALIGNED yet.
+
 # Raspberry Pi (headless server)
 
 The headless binary (`tauri-leptos-cli`) has no Tauri/webkit

@@ -4,29 +4,28 @@
 
 ```bash
 rustup target add wasm32-unknown-unknown
-cargo install trunk tauri-cli
+cargo install cargo-leptos tauri-cli
 ```
 
 ## Build
 
 ```bash
-cargo tauri build
+cargo tauri build -f ssr
 ```
 
-`trunk build` runs automatically first (`beforeBuildCommand`). Bundles
-land in `target/release/bundle/` (`.app`, `.dmg`).
+`-f ssr` compiles the in-process single-origin server into the shell
+(without it the app expects a running `cargo leptos watch` — that is
+the dev configuration). `cargo leptos build --release` runs first
+automatically and the site is bundled into the app's Resources.
+Bundles land in `target/release/bundle/` (`.app`, `.dmg`).
 
 ## Run
 
-Launch the app, or during development:
+Launch the app — it serves everything on `127.0.0.1:3000` and opens
+the window there. `config.toml` lives in
+`~/Library/Application Support/com.nick.tauri-leptos` (only the API
+address and file logging are configurable). Logs go to stderr;
+`RUST_LOG` adjusts verbosity.
 
-```bash
-cargo tauri dev
-```
-
-The app binds its HTTP server on an ephemeral loopback port and opens
-the window on it. Runtime paths follow the [architecture
-doc](../architecture.md#paths): config/data under
-`~/Library/Application Support/com.nick.tauri-leptos`, logs (when
-enabled) under `~/Library/Logs/com.nick.tauri-leptos`. Logs go to
-stderr; set `RUST_LOG` for verbosity.
+For development: `cargo tauri dev` (see
+[architecture](../architecture.md#dev-workflows)).

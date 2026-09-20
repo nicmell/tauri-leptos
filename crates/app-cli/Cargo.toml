@@ -12,6 +12,7 @@ tower-http.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tauri-leptos-core.workspace = true
+tauri-leptos-ui = { path = "../ui", features = ["ssr"] }
 
 [lints]
 workspace = true

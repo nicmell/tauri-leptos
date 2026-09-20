@@ -30,11 +30,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run the API server
+    /// Run the server: SSR frontend + API on one origin (default), or
+    /// API only with --headless (the dev split)
     Serve {
         /// Listen address (overrides the configured api address)
         #[arg(long)]
         listen: Option<SocketAddr>,
+        /// API only, no frontend: dev mode alongside `cargo leptos watch`
+        #[arg(long)]
+        headless: bool,
+        /// Frontend bundle directory (full mode; default: the platform
+        /// share dir on Linux, target/site elsewhere)
+        #[arg(long)]
+        site_root: Option<PathBuf>,
         /// Also write logs to a daily-rolling file in the app log dir
         #[arg(long)]
         log_to_file: bool,
@@ -69,37 +77,58 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match cli.command {
         Command::Serve {
             listen,
+            headless,
+            site_root,
             log_to_file,
         } => {
             // Invalid config is a hard error: systemd must see the failure.
             let config = AppConfig::load(&paths)?;
+            // In full mode this is the address of the whole app.
             let listen = listen.unwrap_or(config.api_addr);
             let log_to_file = log_to_file || config.log_to_file;
 
             let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
             paths.ensure_dirs()?;
-            // In dev the page comes from another origin (the frontend
-            // server on :3000, or the tauri webview); production uses the
-            // merged single-origin server and never needs this.
-            let cors = tower_http::cors::CorsLayer::new()
-                .allow_origin([
-                    HeaderValue::from_static("http://127.0.0.1:3000"),
-                    HeaderValue::from_static("tauri://localhost"),
-                    HeaderValue::from_static("http://tauri.localhost"),
-                ])
-                .allow_methods([Method::GET, Method::POST])
-                .allow_headers([header::CONTENT_TYPE]);
-            let app = server::api_router()
-                .route(
-                    "/",
-                    axum::routing::get(|| async {
-                        "tauri-leptos api server - the frontend is served on :3000"
-                    }),
-                )
-                .layer(cors);
+
+            let app = if headless {
+                // Dev split: the page comes from another origin (the
+                // frontend server on :3000, or the tauri webview).
+                let cors = tower_http::cors::CorsLayer::new()
+                    .allow_origin([
+                        HeaderValue::from_static("http://127.0.0.1:3000"),
+                        HeaderValue::from_static("tauri://localhost"),
+                        HeaderValue::from_static("http://tauri.localhost"),
+                    ])
+                    .allow_methods([Method::GET, Method::POST])
+                    .allow_headers([header::CONTENT_TYPE]);
+                tracing::info!("headless: api only, frontend expected on :3000");
+                server::api_router()
+                    .route(
+                        "/",
+                        axum::routing::get(|| async {
+                            "tauri-leptos api server - the frontend is served on :3000"
+                        }),
+                    )
+                    .layer(cors)
+            } else {
+                // Full single-origin server: SSR pages + API, the systemd
+                // deployment mode. The site must be a release build
+                // (`cargo leptos build --release`).
+                let site_root = site_root.unwrap_or_else(AppPaths::default_site_root);
+                if !site_root.join("pkg").exists() {
+                    tracing::warn!(
+                        site_root = %site_root.display(),
+                        "site root looks empty - run `cargo leptos build --release` \
+                         and install/point --site-root at it"
+                    );
+                }
+                tracing::info!(site_root = %site_root.display(), "full server (ssr + api)");
+                let options = tauri_leptos_ui::server::leptos_options(&site_root, listen);
+                tauri_leptos_ui::server::router(options)
+            };
 
             let srv = server::Server::bind(listen)?;
-            tracing::info!(addr = %srv.local_addr()?, "api server up");
+            tracing::info!(addr = %srv.local_addr()?, "server up");
             tracing::debug!(?paths, "resolved app paths");
             srv.serve(app, server::shutdown_signal()).await?;
         }

@@ -18,3 +18,5 @@ keystore.properties
 
 /.tauri
 /tauri.settings.gradle
+# injected by cargo tauri (inject_resources) on every android build
+app/src/main/assets/

@@ -41,6 +41,8 @@ jobs:
         run: cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
       - name: tests
         run: cargo nextest run --workspace --no-tests=pass
+      - name: tests (ui ssr)
+        run: cargo nextest run -p tauri-leptos-ui --features ssr --no-tests=pass
 
   deny:
     runs-on: ubuntu-latest

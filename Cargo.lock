@@ -4613,6 +4613,7 @@ dependencies = [
  "serde",
  "tauri-leptos-core",
  "tokio",
+ "tower",
  "tracing",
  "wasm-bindgen",
 ]

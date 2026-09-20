@@ -14,8 +14,9 @@ crates/ui        Leptos app. lib (feature hydrate): the wasm client.
                  leptos_router(options, api_base), production router().
 crates/app-core  config + paths + logging + the API router (axum:
                  /api/hello, /api/counter, /ws) and bind/serve/shutdown.
-crates/app-cli   tauri-leptos-cli: the API server as a unix daemon,
-                 plus `config write|validate`.
+crates/app-cli   tauri-leptos-cli: full single-origin server by default
+                 (SSR + api, the systemd deployment), --headless = api
+                 only (the dev split); plus `config write|validate`.
 src-tauri        Tauri shell. Feature ssr = in-process production server.
 ```
 
@@ -25,7 +26,7 @@ src-tauri        Tauri shell. Feature ssr = in-process production server.
 cargo leptos watch ──► ui bin :3000  SSR + hydration (hot reload)
                                      injects <meta name="api-base"
                                      content="http://127.0.0.1:3001">
-tauri-leptos-cli   ──► api    :3001  axum only, holds state, CORS for
+tauri-leptos-cli --headless ──► api :3001  axum only, holds state, CORS
                                      the local dev origins
 ```
 
@@ -103,7 +104,16 @@ cargo tauri build -f ssr     # production bundle (merged in-process server)
 cargo leptos build --release # site for plain-cargo servers
 ```
 
+## Headless / Raspberry Pi
+
+`tauri-leptos-cli serve` (no flags) runs the same merged single-origin
+server standalone: site from `--site-root` (deb: `/usr/share/tauri-leptos/site`;
+manual Linux default `/usr/local/share/tauri-leptos/site`; elsewhere
+`target/site`). `--headless` keeps the api-only dev behavior. Packaging:
+`scripts/build-deb.sh` → deb with binary+site+system unit (enable/start
+on install). See [install/raspberry-pi.md](install/raspberry-pi.md).
+
 ## Out of scope for now
 
-Android (`src-tauri/gen/` predates this flow), headless/Pi deployment,
+Android (`src-tauri/gen/` predates this flow),
 e2e testing.

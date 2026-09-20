@@ -1,72 +1,66 @@
-> **Note**: this guide predates the current Leptos SSR flow and is NOT ALIGNED yet.
+# Raspberry Pi (systemd appliance)
 
-# Raspberry Pi (headless server)
+The cli serves the whole app (SSR pages + API + WS) on one origin and
+ships as a **deb** with its systemd unit. It links no Tauri/webkit —
+**no GTK/WebKit packages needed** on the Pi.
 
-The headless binary (`tauri-leptos-cli`) has no Tauri/webkit
-dependencies — it is a plain axum server with the frontend embedded.
+The audio stack (jackd → scsynth → StrudelDirt as system units, the
+`RemoveIPC`/linger gotcha, quarks) is documented in [`rpi/`](../../rpi/)
+— the app is the fourth unit of that stack and follows its pattern.
 
-## Build
-
-On the Pi (or any aarch64 Linux host):
+## Prerequisites (once)
 
 ```bash
+# rust + tools
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 rustup target add wasm32-unknown-unknown
-cargo install trunk
-trunk build --release
-cargo build --release -p tauri-leptos-cli
+cargo install cargo-leptos cargo-deb   # (or cargo-binstall them)
 ```
 
-Cross-compiling from another machine: build `trunk build --release`
-first, then `cargo build --release -p tauri-leptos-cli --target
-aarch64-unknown-linux-gnu` with your preferred cross toolchain (e.g.
-`cross`). The frontend is embedded at compile time, so the single
-binary is the whole deployment artifact.
-
-## Install
+## Release flow
 
 ```bash
-sudo install -m 755 target/release/tauri-leptos-cli /usr/local/bin/
+ssh <pi>
+cd tauri-leptos && git pull
+./scripts/build-deb.sh
+sudo apt install ./target/debian/tauri-leptos-cli_*.deb
 ```
 
-## systemd unit
+The install **enables and starts** `tauri-leptos-cli.service`
+automatically; upgrades (same commands) restart it. Removal stops and
+disables it (`sudo apt remove tauri-leptos-cli`).
 
-`/etc/systemd/system/tauri-leptos.service`:
+What the deb contains: `/usr/bin/tauri-leptos-cli`, the release site at
+`/usr/share/tauri-leptos/site`, and the unit at
+`/usr/lib/systemd/system/tauri-leptos-cli.service`
+(`crates/app-cli/debian/` in the repo — **edit `User=`/`Group=` to
+match your machine** before building; it defaults to the reference
+Pi's `nick`/`audio`, the same user as scsynth so the future SHM scope
+access shares ownership).
 
-```ini
-[Unit]
-Description=tauri-leptos server
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/tauri-leptos-cli serve --listen 0.0.0.0:3000
-DynamicUser=yes
-ConfigurationDirectory=tauri-leptos
-StateDirectory=tauri-leptos
-CacheDirectory=tauri-leptos
-LogsDirectory=tauri-leptos
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-The `*Directory=` directives make systemd own `/etc/tauri-leptos`,
-`/var/lib/tauri-leptos`, etc., and export the matching
-`*_DIRECTORY` env vars, which the app's path resolution picks up
-automatically (see [architecture](../architecture.md#paths)).
+## Verify
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now tauri-leptos
-journalctl -u tauri-leptos -f        # logs (the app writes to stderr)
+systemctl status tauri-leptos-cli.service
+journalctl -u tauri-leptos-cli.service -f      # logs (stderr → journald)
+curl http://<pi-ip>:3000/api/hello             # from the LAN
 ```
 
-## Manual runs
+Browse `http://<pi-ip>:3000` — the whole app (page, API, WS) is served
+there; the API is not authenticated, keep it on a trusted network.
 
-For an ad-hoc run with everything under one folder:
+Config: systemd's `ConfigurationDirectory=` owns `/etc/tauri-leptos`
+(seeded `config.toml` on first run); state under
+`/var/lib/tauri-leptos`. Remember the linger requirement from
+[`rpi/raspberry-pi.md`](../../rpi/raspberry-pi.md) — it protects
+scsynth's SHM, which this app will map.
+
+## Manual runs (no deb)
 
 ```bash
-tauri-leptos-cli serve --app-dir ~/tauri-leptos-data --log-to-file
+cargo leptos build --release
+cargo run -p tauri-leptos-cli -- serve --site-root target/site --listen 0.0.0.0:3000
 ```
 
-(or `TAURI_LEPTOS_APP_DIR=…`; an empty value acts as unset).
+Without `--site-root`, the Linux default is
+`/usr/local/share/tauri-leptos/site` (for hand-installed sites).

@@ -1,0 +1,24 @@
+# The tauri-leptos app server: the fourth unit of the Pi audio stack
+# (see rpi/ for jackd/scsynth/strudeldirt). Runs as the same regular
+# user as scsynth so the future SHM scope access shares ownership —
+# edit User/Group to match your machine, and remember
+# `sudo loginctl enable-linger <user>` (RemoveIPC gotcha, rpi/raspberry-pi.md).
+[Unit]
+Description=tauri-leptos server
+After=network.target scsynth.service
+
+[Service]
+User=nick
+Group=audio
+ExecStart=/usr/bin/tauri-leptos-cli serve --listen 0.0.0.0:3000 --site-root /usr/share/tauri-leptos/site
+# systemd owns /etc/tauri-leptos, /var/lib/tauri-leptos, ... and exports
+# the matching *_DIRECTORY env vars the app's path resolution picks up.
+ConfigurationDirectory=tauri-leptos
+StateDirectory=tauri-leptos
+CacheDirectory=tauri-leptos
+LogsDirectory=tauri-leptos
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

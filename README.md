@@ -46,6 +46,7 @@ same-origin and relative.
 ```bash
 cargo tauri build -f ssr          # desktop bundle
 ./scripts/build-deb.sh            # Raspberry Pi deb (binary + site + systemd unit)
+cargo tauri android build         # Android APK (server in-process, assets from the APK)
 ```
 
 `cargo leptos build --release` runs first automatically; the site is

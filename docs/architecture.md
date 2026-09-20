@@ -54,6 +54,22 @@ the workspace `target/site` as fallback for unbundled runs.
 The frontend origin (`127.0.0.1:3000`) is fixed by design and never
 configurable.
 
+## Unified asset serving (SiteAssets)
+
+Every mode serves site assets through one interface —
+`ui::server::SiteAssets` (`open(rel) -> std::fs::File`), plugged into
+the router's fallback (stream + mime on hit, SSR shell on miss):
+
+| impl | used by | resolution |
+| --- | --- | --- |
+| `DirAssets(dir)` | cli `--site-root`, dev frontend-server, tests | plain filesystem + traversal guard |
+| `TauriAssets` (src-tauri) | desktop bundle AND Android, same code | `resource_dir()/site` via the fs plugin (desktop: real files; Android: APK assets as file descriptors) |
+
+On Android there is no extraction: assets are opened from the APK per
+request (compressed assets are cache-copied by the plugin — correct;
+`noCompress` would yield raw-APK fds). The server runs unconditionally
+there (`any(feature ssr, target_os android)`).
+
 ## Asset naming and site builds
 
 - `.cargo/config.toml` pins `LEPTOS_OUTPUT_NAME`: leptos derives asset
@@ -115,5 +131,5 @@ on install). See [install/raspberry-pi.md](install/raspberry-pi.md).
 
 ## Out of scope for now
 
-Android (`src-tauri/gen/` predates this flow),
-e2e testing.
+e2e testing; iOS (never started — would follow the desktop path,
+bundle resources are real files there).

@@ -7,6 +7,7 @@ use std::error::Error;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+use axum::http::{HeaderValue, Method, header};
 use clap::{Parser, Subcommand};
 use tauri_leptos_core::config::{AppConfig, CONFIG_FILE};
 use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
@@ -77,11 +78,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
             paths.ensure_dirs()?;
+            // In dev the page comes from another origin (the frontend
+            // server on :3000, or the tauri webview); production uses the
+            // merged single-origin server and never needs this.
+            let cors = tower_http::cors::CorsLayer::new()
+                .allow_origin([
+                    HeaderValue::from_static("http://127.0.0.1:3000"),
+                    HeaderValue::from_static("tauri://localhost"),
+                    HeaderValue::from_static("http://tauri.localhost"),
+                ])
+                .allow_methods([Method::GET, Method::POST])
+                .allow_headers([header::CONTENT_TYPE]);
+            let app = server::api_router()
+                .route(
+                    "/",
+                    axum::routing::get(|| async {
+                        "tauri-leptos api server - the frontend is served on :3000"
+                    }),
+                )
+                .layer(cors);
+
             let srv = server::Server::bind(listen)?;
             tracing::info!(addr = %srv.local_addr()?, "api server up");
             tracing::debug!(?paths, "resolved app paths");
-            srv.serve(server::api_router(), server::shutdown_signal())
-                .await?;
+            srv.serve(app, server::shutdown_signal()).await?;
         }
         Command::Config { action } => {
             let default_path = || paths.app_config_dir.join(CONFIG_FILE);

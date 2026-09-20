@@ -4572,9 +4572,11 @@ dependencies = [
 name = "tauri-leptos-cli"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "clap",
  "tauri-leptos-core",
  "tokio",
+ "tower-http",
  "tracing",
 ]
 

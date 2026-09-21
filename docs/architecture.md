@@ -8,12 +8,15 @@ dev/build flow drives everything.
 ## Crate map
 
 ```
-crates/ui        Leptos frontend, a pure library: lib (feature
-                 hydrate) is the wasm client; server.rs (feature ssr)
-                 provides leptos_options, leptos_router, router().
-crates/app-core  config + paths + logging + the API router (axum:
-                 /api/hello, /api/counter, /ws), bind/serve/shutdown,
-                 and the asset backends (assets::Assets).
+crates/ui        Leptos frontend, a pure library with no core
+                 dependency: lib (feature hydrate) is the wasm client;
+                 server.rs (feature ssr) is just pages() — SSR routes
+                 + server fns, 404 on unknown paths.
+crates/app-core  everything else: config + paths + logging + the API
+                 router (/api/hello, /api/counter, /ws), the asset
+                 backends (assets::Assets), and the router owners
+                 Ctx::site_router / Ctx::proxy_router (core depends
+                 on ui).
 crates/app-cli   tauri-leptos-cli: thin wrapper around the single-origin
                  router; build features pick what it serves.
 src-tauri        Tauri shell: in-process server on an ephemeral port,
@@ -22,11 +25,12 @@ src-tauri        Tauri shell: in-process server on an ephemeral port,
 
 ## One origin everywhere
 
-Every mode serves a single origin. The only cargo feature left is
-the shell's `site` (default; its dev fast path skips leptos). The cli
-has none — it is always the full server (a remote api server is the
-same binary with `cors_origins` set). Dev vs release in the shell is
-`cfg(dev)`, emitted by tauri-build:
+Every mode serves a single origin, and no app crate has cargo
+features: core depends on ui and owns the router — `Ctx::site_router`
+(leptos pages + assets + api) and `Ctx::proxy_router` (dev). The cli
+is always the full server (a remote api server is the same binary
+with `cors_origins` set). Dev vs release in the shell is `cfg(dev)`,
+emitted by tauri-build:
 
 ```
 dev      cargo leptos watch ──► runs the cli (site build) on :3001
@@ -48,8 +52,7 @@ Dev notes:
 - `view!`/CSS edits hot-patch in place; edits to Rust logic rebuild
   only the watch server.
 - `cargo tauri dev` spawns the watch (`beforeDevCommand`) and proxies
-  to it. `-- --no-default-features` is the optional fast path: it
-  skips the unused leptos build of the shell.
+  to it.
 - **Server functions stay stateless by convention**; state lives behind
   `/api` and `/ws` in `core::server::api_router`.
 
@@ -139,8 +142,8 @@ first run seeds the defaults, an invalid config refuses to start) and
 runs through `core::app`:
 
 ```rust
-app(ctx, factory)             // factory: site router, or the shell's
-    .serve(listen)?           //   dev proxy under cfg(dev)
+app(ctx, factory)             // factory: ctx.site_router(addr, assets),
+    .serve(listen)?           //   or ctx.proxy_router() under cfg(dev)
     .await                    // binds now (port 0 = ephemeral); await it
                               //   or hand the Serving to a runtime spawn
 ```
@@ -171,7 +174,6 @@ default.
 ```bash
 cargo tauri dev              # spawns the watch; window + browser on the
                              # ephemeral origin (logged at startup)
-cargo tauri dev -- --no-default-features   # same, skipping the unused leptos build
 cargo tauri build            # production bundle (embedded frontend)
 cargo leptos build --release # site for plain-cargo servers
 ```

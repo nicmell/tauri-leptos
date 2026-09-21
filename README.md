@@ -33,8 +33,7 @@ cargo tauri dev          # spawns the watch, window on an ephemeral origin
 The dev shell serves one origin (api in-process + pages proxied from
 the watch): api state survives frontend rebuilds (try `/api/counter`),
 and the origin is a plain http server — open the URL logged at startup
-in a browser for browser work. `cargo tauri dev -- --no-default-features`
-skips the shell's unused leptos build. Everything is same-origin and
+in a browser for browser work. Everything is same-origin and
 relative, in dev and production alike.
 
 ## Production build
@@ -52,7 +51,7 @@ bundled into the app's resources and served by the in-process server.
 
 ```bash
 cargo nextest run --workspace --no-tests=pass          # native tests
-cargo nextest run -p tauri-leptos-ui --features ssr    # SSR render tests
+cargo nextest run -p tauri-leptos-core             # incl. SSR render tests
 cargo clippy --workspace --all-targets
 cargo clippy -p tauri-leptos-ui --features ssr
 cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown

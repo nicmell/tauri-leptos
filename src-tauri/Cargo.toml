@@ -20,14 +20,8 @@ tauri-build.workspace = true
 tauri.workspace = true
 tracing.workspace = true
 tauri-leptos-core = { workspace = true, features = ["tauri"] }
-tauri-leptos-ui = { path = "../crates/ui", features = ["ssr"], optional = true }
 tauri-plugin-fs.workspace = true
 axum.workspace = true
-
-[features]
-default = ["site"]
-# Embedded SSR frontend served from the bundled resources.
-site = ["dep:tauri-leptos-ui"]
 
 [lints]
 workspace = true

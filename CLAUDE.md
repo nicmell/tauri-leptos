@@ -25,7 +25,6 @@ not part of the build).
 
 ```bash
 cargo tauri dev                                 # dev (watch spawned; browser = logged ephemeral URL)
-cargo tauri dev -- --no-default-features        # same, skips the shell's unused leptos build
 cargo tauri build                               # production bundle
 cargo leptos build                              # dev site + watch (cli) binary
 cargo leptos build --release                    # site for plain-cargo servers
@@ -35,7 +34,6 @@ cargo clippy --workspace --all-targets
 cargo clippy -p tauri-leptos-ui --features ssr
 cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
 cargo nextest run --workspace --no-tests=pass
-cargo nextest run -p tauri-leptos-ui --features ssr
 cargo fmt --all && leptosfmt crates/ui/src
 cargo deny check
 bacon                                           # watch loop (c=clippy w=wasm t=test d=doc s=serve)
@@ -58,9 +56,11 @@ bacon                                           # watch loop (c=clippy w=wasm t=
 - Ports: 3000 = app origin (cli entry/serve default), 3001 = watch
   (internal; `dev.upstream` in config, leptos `site-addr`, `devUrl` must
   all match), 3002 = reload, ephemeral = shell. Build features pick the
-  content: the shell's feature `site` (default) = embedded frontend;
-  under `cfg(dev)` = api + reverse proxy to the watch (no dev cargo
-  feature anywhere; the cli has no features — always the full server).
+  content: the shell under `cfg(dev)` = api + reverse proxy to the
+  watch; everything else = embedded frontend. No app cargo features at
+  all — core owns the router (`Ctx::site_router`/`proxy_router`), ui
+  is the leptos-only `pages()` (no core dependency, 404 on unknown
+  paths).
 - Any server built with plain cargo serves a **release** site — dev
   cargo-leptos builds only hydrate against their own watch.
 - No LICENSE yet: crates are `publish = false`, cargo-deny ignores

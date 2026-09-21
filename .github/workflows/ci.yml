@@ -45,8 +45,6 @@ jobs:
         run: cargo clippy -p tauri-leptos --features tauri/custom-protocol
       - name: tests
         run: cargo nextest run --workspace --no-tests=pass
-      - name: tests (ui ssr)
-        run: cargo nextest run -p tauri-leptos-ui --features ssr --no-tests=pass
 
   deny:
     runs-on: ubuntu-latest

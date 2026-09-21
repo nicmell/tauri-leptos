@@ -61,6 +61,38 @@ impl Ctx {
     }
 }
 
+impl Ctx {
+    /// The full single-origin router: SSR pages + server functions
+    /// (leptos) behind the given asset backend, merged with the api.
+    pub fn site_router(
+        &self,
+        addr: std::net::SocketAddr,
+        assets: impl crate::assets::Assets,
+    ) -> axum::Router {
+        self.compose(
+            assets,
+            tauri_leptos_ui::server::pages(addr, self.config.api_base.clone()),
+        )
+    }
+
+    /// The dev router (the tauri shell under `cfg(dev)`): api local —
+    /// stable across frontend rebuilds — pages and assets
+    /// reverse-proxied from the watch server.
+    pub fn proxy_router(&self) -> axum::Router {
+        tracing::info!(upstream = %self.config.dev.upstream, "dev server (api + proxy to the watch)");
+        self.compose(
+            crate::assets::ProxyAssets(self.config.dev.upstream.clone()),
+            axum::Router::new(),
+        )
+    }
+
+    fn compose(&self, assets: impl crate::assets::Assets, pages: axum::Router) -> axum::Router {
+        assets
+            .into_router(pages)
+            .merge(crate::server::api_router(&self.config.cors_origins))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

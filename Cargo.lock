@@ -4620,7 +4620,6 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-leptos-core",
- "tauri-leptos-ui",
  "tauri-plugin-fs",
  "tracing",
 ]
@@ -4632,7 +4631,6 @@ dependencies = [
  "axum",
  "clap",
  "tauri-leptos-core",
- "tauri-leptos-ui",
  "tokio",
  "tracing",
 ]
@@ -4649,6 +4647,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tauri",
+ "tauri-leptos-ui",
  "tauri-plugin-fs",
  "tokio",
  "tokio-util",
@@ -4673,10 +4672,8 @@ dependencies = [
  "leptos_meta",
  "leptos_router",
  "serde",
- "tauri-leptos-core",
  "tokio",
  "tower",
- "tracing",
  "wasm-bindgen",
 ]
 

@@ -49,6 +49,8 @@ impl Assets for StaticAssets {
             Backend::Dir(dir) => {
                 let serve = tower_http::services::ServeDir::new(dir)
                     .append_index_html_on_directories(false)
+                    // Server-fn POSTs must reach the pages fallback.
+                    .call_fallback_on_method_not_allowed(true)
                     .fallback(on_miss);
                 Router::new().fallback_service(serve)
             }
@@ -126,7 +128,17 @@ mod tauri_fs {
             async move {
                 use tower::util::ServiceExt;
                 let rel = req.uri().path().trim_start_matches('/').to_owned();
-                match opener(&rel) {
+                // Only GET/HEAD can be assets; everything else goes to
+                // the pages fallback (server-fn POSTs).
+                let is_read = matches!(
+                    *req.method(),
+                    axum::http::Method::GET | axum::http::Method::HEAD
+                );
+                match if is_read {
+                    opener(&rel)
+                } else {
+                    Err(io::Error::other("not an asset"))
+                } {
                     Ok(file) => serve_file(&rel, file),
                     Err(_) => on_miss.oneshot(req).await.unwrap_or_else(|e| match e {}),
                 }

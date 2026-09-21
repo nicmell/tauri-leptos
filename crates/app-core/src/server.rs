@@ -68,16 +68,6 @@ pub async fn shutdown_signal() {
 }
 
 /// The API surface — merged with the SSR routes by the ui crate.
-/// Dev router (the tauri shell under `cfg(dev)`): the api lives here
-/// (stable across frontend rebuilds), pages and assets come from the
-/// watch server through the reverse proxy.
-pub fn dev_router(config: &crate::config::AppConfig) -> axum::Router {
-    use crate::assets::{Assets, ProxyAssets};
-    tracing::info!(upstream = %config.dev.upstream, "dev server (api + proxy to the watch)");
-    api_router(&config.cors_origins)
-        .merge(ProxyAssets(config.dev.upstream.clone()).into_router(axum::Router::new()))
-}
-
 /// The stateful API half. `cors_origins` allows remote frontends to
 /// call `/api` cross-origin (empty = same-origin only, no layer;
 /// `"*"` = any origin). Web sockets are not subject to CORS.

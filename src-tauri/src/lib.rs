@@ -1,9 +1,3 @@
-// Dev runs (cfg(dev), emitted by tauri-build) proxy to the watch and
-// need no leptos: `-- --no-default-features` is the fast path. Release
-// builds must embed the frontend.
-#[cfg(all(not(dev), not(feature = "site")))]
-compile_error!("release builds need the `site` feature (default)");
-
 use std::sync::OnceLock;
 
 use tauri_leptos_core::logging::{self, LogGuard};
@@ -16,7 +10,7 @@ mod server {
     use tauri_leptos_core::bootstrap::Ctx;
 
     /// The embedded frontend: SSR + assets from the bundled resources.
-    #[cfg(all(feature = "site", not(dev)))]
+    #[cfg(not(dev))]
     fn site_router(
         handle: tauri::AppHandle,
         resource_dir: &std::path::Path,
@@ -30,8 +24,7 @@ mod server {
             .site_root_resolved(resource_dir, resource_dir.join("site"));
         tracing::info!(base = %resource_site.display(), "serving bundled resources");
         let assets = tauri_leptos_core::assets::StaticAssets::from_tauri_fs(handle, resource_site);
-        let options = tauri_leptos_ui::server::leptos_options(addr);
-        tauri_leptos_ui::server::router(options, assets, &ctx.config)
+        ctx.site_router(addr, assets)
     }
 
     /// Start the in-process single-origin server on an ephemeral port
@@ -48,7 +41,7 @@ mod server {
         // Dev: api in-process + reverse proxy to the watch (state
         // survives frontend rebuilds); release: the embedded site.
         #[cfg(dev)]
-        let router = |ctx: &Ctx, _| Ok(tauri_leptos_core::server::dev_router(&ctx.config));
+        let router = |ctx: &Ctx, _| Ok(ctx.proxy_router());
         #[cfg(not(dev))]
         let router = {
             use tauri::Manager;

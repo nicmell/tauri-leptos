@@ -85,11 +85,9 @@ fn site_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
         );
     }
     tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
-    let options = tauri_leptos_ui::server::leptos_options(listen);
-    tauri_leptos_ui::server::router(
-        options,
+    ctx.site_router(
+        listen,
         tauri_leptos_core::assets::StaticAssets::from_site_root(site_root),
-        &ctx.config,
     )
 }
 

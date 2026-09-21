@@ -118,12 +118,22 @@ impl AppConfig {
             Ok(text) => Self::parse(&text).map_err(|e| ConfigError::Parse(path, e)),
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
                 let config = Self::default();
-                if let Err(e) = config.seed(&path) {
-                    eprintln!("[config] could not write default {}: {e}", path.display());
-                } else {
-                    eprintln!("[config] wrote default config to {}", path.display());
+                match config.seed(&path) {
+                    Ok(()) => {
+                        eprintln!("[config] wrote default config to {}", path.display());
+                        Ok(config)
+                    }
+                    // Lost the race: another process seeded it first.
+                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                        let text = std::fs::read_to_string(&path)
+                            .map_err(|e| ConfigError::Io(path.clone(), e))?;
+                        Self::parse(&text).map_err(|e| ConfigError::Parse(path, e))
+                    }
+                    Err(e) => {
+                        eprintln!("[config] could not write default {}: {e}", path.display());
+                        Ok(config)
+                    }
                 }
-                Ok(config)
             }
             Err(e) => Err(ConfigError::Io(path, e)),
         }
@@ -141,12 +151,19 @@ impl AppConfig {
         }
     }
 
-    /// Write this config to `path`; creates parent directories.
+    /// Write this config to `path` atomically — fails if the file
+    /// already exists (no read-then-write race). Creates parent
+    /// directories.
     pub fn seed(&self, path: &Path) -> io::Result<()> {
+        use std::io::Write;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(path, self.to_toml())
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)?;
+        file.write_all(self.to_toml().as_bytes())
     }
 }
 

@@ -102,6 +102,9 @@ impl Ctx {
                 let site_root = self
                     .config
                     .site_root_resolved(&self.paths.app_config_dir, "target/site");
+                // Pin the root: symlinked or relative roots resolve once
+                // here, not per request.
+                let site_root = site_root.canonicalize().unwrap_or(site_root);
                 if !site_root.join("pkg").exists() {
                     tracing::warn!(
                         site_root = %site_root.display(),

@@ -33,6 +33,7 @@ wasm-bindgen = "0.2"
 gloo-net = { version = "0.7", features = ["http", "json", "websocket"] }
 futures = "0.3"
 tower-http = { version = "0.6", features = ["fs", "cors"] }
+percent-encoding = "2"
 axum-reverse-proxy = { version = "2.2", default-features = false }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "registry"] }

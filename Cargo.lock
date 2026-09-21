@@ -4641,6 +4641,7 @@ dependencies = [
  "dirs",
  "mime_guess",
  "paranoid-android",
+ "percent-encoding",
  "serde",
  "serde_json",
  "tauri",

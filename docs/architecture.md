@@ -63,8 +63,9 @@ in-process on `127.0.0.1:0` and creates the window at runtime
 (`WebviewWindowBuilder` in setup) on the real bound address — no fixed
 port can ever conflict with something else on the user's machine. The
 site comes from the bundled resources (`bundle.resources` →
-`resource_dir()/site`), with the workspace `target/site` as fallback
-for unbundled runs.
+`resource_dir()/site`); an unbundled `cargo run -p tauri-leptos` has
+no resources — point `site_root` in the config at a built site if you
+need that mode.
 
 The fixed `127.0.0.1:3000` remains only where an anchor is needed:
 the dev watch (devUrl, adb reverse) and the cli default.

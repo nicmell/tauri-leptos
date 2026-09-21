@@ -39,12 +39,11 @@ overwrite the hand edits — review the git diff afterwards.
 
 ## Develop
 
-Android dev attaches to the host's dev processes like desktop dev: no
+Android dev attaches to the host's dev server like desktop dev: no
 in-process server (`cfg(dev)` skips it), no release site build. The
-device reaches the host through `adb reverse` — 3000 (watch), 3001
-(api), 3002 (leptos reload socket). With an emulator or device
-connected and the api server running (`mprocs` or the cli
-`serve --headless`):
+device reaches the host through `adb reverse` — 3000 (the watch's
+single-origin dev server), 3002 (leptos reload socket). With an
+emulator or device connected:
 
 ```bash
 ./scripts/android-dev.sh                         # reverses + android dev

@@ -15,9 +15,9 @@ pub const CONFIG_FILE: &str = "config.toml";
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct AppConfig {
-    /// Address of the API/WS server. The frontend URL is never
-    /// configurable (fixed 127.0.0.1:3000).
-    pub api_addr: SocketAddr,
+    /// Address the server listens on (SSR + api + ws, one origin).
+    /// `--host`/`--port` override it per invocation.
+    pub listen: SocketAddr,
     /// Also write logs to a daily-rolling file in the app log dir.
     pub log_to_file: bool,
 }
@@ -25,7 +25,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            api_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
+            listen: SocketAddr::from(([127, 0, 0, 1], 3000)),
             log_to_file: false,
         }
     }
@@ -99,8 +99,8 @@ mod tests {
 
     #[test]
     fn partial_file_fills_defaults() {
-        let parsed = AppConfig::parse("api_addr = \"0.0.0.0:8080\"\n").expect("partial parses");
-        assert_eq!(parsed.api_addr, SocketAddr::from(([0, 0, 0, 0], 8080)));
+        let parsed = AppConfig::parse("listen = \"0.0.0.0:8080\"\n").expect("partial parses");
+        assert_eq!(parsed.listen, SocketAddr::from(([0, 0, 0, 0], 8080)));
         assert!(!parsed.log_to_file);
     }
 

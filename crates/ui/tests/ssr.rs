@@ -52,24 +52,10 @@ async fn production_router_renders_and_merges_the_api() {
     assert!(html.contains("/pkg/tauri-leptos.js"));
     assert!(html.contains("/pkg/tauri-leptos.wasm"));
     assert!(!html.contains("_bg.wasm"));
-    // Single origin: no API base injected -> the client uses relative URLs.
-    assert!(html.contains(r#"<meta name="api-base" content="">"#));
 
     let (status, _, body) = get(app, "/api/hello?name=ssr").await;
     assert_eq!(status, StatusCode::OK);
     assert!(body.contains("Hello, ssr!"));
-}
-
-#[tokio::test]
-async fn dev_router_injects_the_api_base() {
-    let app = tauri_leptos_ui::server::leptos_router(
-        options(),
-        Some("http://127.0.0.1:3001".to_owned()),
-        site_assets(),
-    );
-    let (status, _, html) = get(app, "/").await;
-    assert_eq!(status, StatusCode::OK);
-    assert!(html.contains(r#"<meta name="api-base" content="http://127.0.0.1:3001">"#));
 }
 
 // Needs a built site (cargo leptos build); CI builds it before testing.

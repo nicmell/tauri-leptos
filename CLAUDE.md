@@ -15,14 +15,14 @@ not part of the build).
 - `crates/ui` — Leptos app: lib (feature `hydrate`, wasm client) + bin
   (feature `ssr`, the dev frontend-server run by `cargo leptos watch`).
 - `crates/app-core` — config/paths/logging/api_router; no Leptos/Tauri.
-- `crates/app-cli` — the API server (+ `config write|validate`).
+- `crates/app-cli` — the standalone server (+ `config write|validate`).
 - `src-tauri` — shell; feature `ssr` = in-process production server.
 
 ## Commands
 
 ```bash
 cargo tauri dev                                 # desktop dev (spawns the watch)
-mprocs                                          # browser dev: watch :3000 + api :3001
+cargo leptos watch                              # browser dev: everything on :3000
 cargo tauri build -f ssr                        # production bundle
 cargo leptos build                              # dev site + frontend-server
 cargo leptos build --release                    # site for plain-cargo servers
@@ -47,12 +47,13 @@ bacon                                           # watch loop (c=clippy w=wasm t=
   .rs files automatically.
 - Dependencies: versions only in `workspace.dependencies`; members use
   `dep.workspace = true`. New dependencies must be ≥ 7 days old.
-- `serve` = full single-origin server (systemd/Pi); `serve --headless`
-  = api-only, the dev split half.
-- Server functions are stateless (in dev they run in the frontend
-  process); state lives behind `/api` and `/ws` in the API server.
-- The frontend origin (`127.0.0.1:3000`) is fixed by design; only the
-  API address is configurable (`config.toml`, `api_addr`).
+- `serve` = the single-origin server (systemd/Pi); bind from
+  `--host`/`--port` over the configured `listen`.
+- Server functions stay stateless by convention; state lives behind
+  `/api` and `/ws` in `core::server::api_router` (in-memory state
+  resets on dev rebuilds and redeploys alike).
+- Dev and cli default to `127.0.0.1:3000`; the cli bind is the only
+  configurable address (`config.toml`, `listen`).
 - Any server built with plain cargo serves a **release** site — dev
   cargo-leptos builds only hydrate against their own watch.
 - No LICENSE yet: crates are `publish = false`, cargo-deny ignores

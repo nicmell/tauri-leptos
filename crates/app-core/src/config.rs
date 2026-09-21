@@ -111,6 +111,18 @@ impl AppConfig {
         }
     }
 
+    /// Resolve `site_root` by convention: absolute paths as-is,
+    /// relative paths against `base` (the config file's directory for
+    /// the standalone server, `resource_dir` for the tauri shell),
+    /// absent -> `default`.
+    pub fn site_root_resolved(&self, base: &Path, default: impl Into<PathBuf>) -> PathBuf {
+        match &self.site_root {
+            Some(p) if p.is_absolute() => p.clone(),
+            Some(p) => base.join(p),
+            None => default.into(),
+        }
+    }
+
     /// Write this config to `path`; creates parent directories.
     pub fn seed(&self, path: &Path) -> io::Result<()> {
         if let Some(parent) = path.parent() {
@@ -141,6 +153,26 @@ mod tests {
     #[test]
     fn unknown_fields_are_rejected() {
         assert!(AppConfig::parse("nonsense = true\n").is_err());
+    }
+
+    #[test]
+    fn site_root_convention() {
+        let base = Path::new("/etc/app");
+        let mut config = AppConfig::default();
+        assert_eq!(
+            config.site_root_resolved(base, "target/site"),
+            PathBuf::from("target/site")
+        );
+        config.site_root = Some(PathBuf::from("site"));
+        assert_eq!(
+            config.site_root_resolved(base, "target/site"),
+            PathBuf::from("/etc/app/site")
+        );
+        config.site_root = Some(PathBuf::from("/usr/share/app/site"));
+        assert_eq!(
+            config.site_root_resolved(base, "target/site"),
+            PathBuf::from("/usr/share/app/site")
+        );
     }
 
     #[test]

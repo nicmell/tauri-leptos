@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.nick.tauri-leptos",
   "build": {
-    "beforeDevCommand": "cd .. && cargo leptos watch",
+    "beforeDevCommand": "cd .. && TAURI_LEPTOS_APP_DIR=appdir cargo leptos watch",
     "beforeBuildCommand": "cd .. && cargo leptos build --release",
     "devUrl": "http://127.0.0.1:3001"
   },

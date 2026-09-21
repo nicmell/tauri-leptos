@@ -12,8 +12,10 @@ not part of the build).
   `[[workspace.metadata.leptos]]` block (bin-package = lib-package =
   tauri-leptos-ui). `.cargo/config.toml` pins `LEPTOS_OUTPUT_NAME`
   (asset names at compile time — plain cargo builds need it too).
-- `crates/ui` — Leptos app: lib (feature `hydrate`, wasm client) + bin
-  (feature `ssr`, the watch server run by `cargo leptos watch`, :3001).
+- `crates/ui` — Leptos frontend, pure library: lib (feature
+  `hydrate`, wasm client) + server module (feature `ssr`). The watch
+  server IS the cli (`bin-package`), on :3001 via the committed
+  `appdir/config/config.toml`.
 - `crates/app-core` — config/paths/logging/api_router; no Leptos/Tauri.
 - `crates/app-cli` — the standalone server (+ `config write|validate`).
 - `src-tauri` — shell; non-dev builds embed the in-process server
@@ -22,11 +24,10 @@ not part of the build).
 ## Commands
 
 ```bash
-cargo tauri dev -- --no-default-features --features dev   # desktop dev
-cargo leptos watch                              # frontend half (:3001)
-cargo run -p tauri-leptos-cli --no-default-features --features dev -- serve  # api half, entry :3000
+cargo tauri dev                                 # dev (watch spawned; browser = logged ephemeral URL)
+cargo tauri dev -- --no-default-features        # same, skips the shell's unused leptos build
 cargo tauri build                               # production bundle
-cargo leptos build                              # dev site + frontend-server
+cargo leptos build                              # dev site + watch (cli) binary
 cargo leptos build --release                    # site for plain-cargo servers
 ./scripts/build-deb.sh                          # Pi deb (binary+site+unit)
 cargo check --workspace
@@ -57,8 +58,9 @@ bacon                                           # watch loop (c=clippy w=wasm t=
 - Ports: 3000 = app origin (cli entry/serve default), 3001 = watch
   (internal; `dev.upstream` in config, leptos `site-addr`, `devUrl` must
   all match), 3002 = reload, ephemeral = shell. Build features pick the
-  content: `site` (default) = embedded frontend, `dev` = api + reverse
-  proxy to the watch, neither (cli) = api only.
+  content: feature `site` (default) = embedded frontend, cli without
+  it = api only; the shell under `cfg(dev)` = api + reverse proxy to
+  the watch (no dev cargo feature anywhere).
 - Any server built with plain cargo serves a **release** site — dev
   cargo-leptos builds only hydrate against their own watch.
 - No LICENSE yet: crates are `publish = false`, cargo-deny ignores

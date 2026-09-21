@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
-use tauri_leptos_core::assets::DirAssets;
+use tauri_leptos_core::assets::StaticAssets;
 use tauri_leptos_core::config::AppConfig;
 use tower::ServiceExt;
 
@@ -12,8 +12,8 @@ fn options() -> leptos::prelude::LeptosOptions {
     tauri_leptos_ui::server::leptos_options(SocketAddr::from(([127, 0, 0, 1], 0)))
 }
 
-fn site_assets() -> DirAssets {
-    DirAssets("target/site".into())
+fn site_assets() -> StaticAssets {
+    StaticAssets::from_site_root("target/site")
 }
 
 async fn get(app: axum::Router, uri: &str) -> (StatusCode, Option<String>, String) {
@@ -69,7 +69,7 @@ async fn assets_are_served_with_their_mime_type() {
     }
     let app = tauri_leptos_ui::server::router(
         options(),
-        DirAssets("../../target/site".into()),
+        StaticAssets::from_site_root("../../target/site"),
         &AppConfig::default(),
     );
     let (status, content_type, body) = get(app, "/pkg/tauri-leptos.js").await;

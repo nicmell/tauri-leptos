@@ -39,6 +39,10 @@ jobs:
         run: cargo clippy -p tauri-leptos-ui --features ssr
       - name: clippy (ui hydrate, wasm)
         run: cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
+      - name: clippy (shell, release branch)
+        # Plain cargo emits cfg(dev); activating tauri/custom-protocol
+        # flips it off so the embedded-site branch gets linted too.
+        run: cargo clippy -p tauri-leptos --features tauri/custom-protocol
       - name: tests
         run: cargo nextest run --workspace --no-tests=pass
       - name: tests (ui ssr)

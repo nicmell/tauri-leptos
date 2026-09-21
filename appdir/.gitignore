@@ -1,4 +1,8 @@
-# The repo-local app root for reproducible dev runs
-# (tauri-leptos-cli serve --app-dir appdir): runtime data only.
+# The repo-local app root for reproducible dev runs and the watch
+# server (TAURI_LEPTOS_APP_DIR=appdir): runtime data is ignored, the
+# dev config is tracked.
 *
 !.gitignore
+!config
+config/*
+!config/config.toml

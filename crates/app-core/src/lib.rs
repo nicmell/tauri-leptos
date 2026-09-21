@@ -1,4 +1,6 @@
+pub mod app;
 pub mod assets;
+pub mod bootstrap;
 pub mod config;
 pub mod logging;
 pub mod paths;

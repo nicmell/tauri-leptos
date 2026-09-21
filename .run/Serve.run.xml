@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Serve" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="buildProfileId" value="dev" />
-    <option name="command" value="run -p tauri-leptos-cli -- serve" />
+    <option name="command" value="run -p tauri-leptos-cli -- serve --port 3000" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs>
       <env name="TAURI_LEPTOS_APP_DIR" value="$PROJECT_DIR$/appdir" />

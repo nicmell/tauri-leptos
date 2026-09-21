@@ -8,12 +8,6 @@ publish.workspace = true
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-# The dev frontend-server run by `cargo leptos watch`.
-[[bin]]
-name = "tauri-leptos-ui"
-path = "src/main.rs"
-required-features = ["ssr"]
-
 [dependencies]
 leptos.workspace = true
 leptos_meta.workspace = true

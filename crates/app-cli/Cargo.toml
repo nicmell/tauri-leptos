@@ -17,9 +17,6 @@ tauri-leptos-ui = { path = "../ui", features = ["ssr"], optional = true }
 default = ["site"]
 # Embedded SSR frontend (leptos). Without it the binary has no site.
 site = ["dep:tauri-leptos-ui"]
-# Dev proxy to the cargo-leptos watch server (mutually exclusive with
-# `site`): api stays here, pages/assets come from the watch.
-dev = ["tauri-leptos-core/dev"]
 
 [lints]
 workspace = true
@@ -31,6 +28,8 @@ maintainer-scripts = "debian/"
 assets = [
   ["target/release/tauri-leptos-cli", "usr/bin/", "755"],
   ["../../target/site/**/*", "usr/share/tauri-leptos/site/", "644"],
+  # Under /etc => conffile: apt keeps local edits on upgrade.
+  ["debian/config.toml", "etc/tauri-leptos/config.toml", "644"],
 ]
 
 # Empty table = defaults: enable+start on install, stop+disable on

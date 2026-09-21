@@ -4,21 +4,20 @@
 //! the build:
 //!
 //! - `site` (default): embedded SSR frontend + api.
-//! - `dev`: api here, pages/assets reverse-proxied from the
-//!   `cargo leptos watch` server — api state survives frontend rebuilds.
-//! - neither: api only (a remote api server for frontends elsewhere).
-
-#[cfg(all(feature = "site", feature = "dev"))]
-compile_error!("features `site` and `dev` are mutually exclusive");
+//! - without it: api only (a remote api server for frontends
+//!   elsewhere). Dev happens in the tauri shell (`cargo tauri dev`),
+//!   whose ephemeral origin is a plain http server — open it in a
+//!   browser for browser work.
 
 use std::error::Error;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use tauri_leptos_core::bootstrap::Ctx;
 use tauri_leptos_core::config::{AppConfig, CONFIG_FILE};
+use tauri_leptos_core::logging;
 use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
-use tauri_leptos_core::{logging, server};
 
 #[derive(Parser)]
 #[command(name = "tauri-leptos-cli", version, about = "tauri-leptos server")]
@@ -31,8 +30,10 @@ struct Cli {
                 (overrides platform paths; env: TAURI_LEPTOS_APP_DIR)"
     )]
     app_dir: Option<PathBuf>,
+    /// Defaults to `serve` — `cargo leptos watch` runs this binary
+    /// with no arguments.
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -72,13 +73,15 @@ enum ConfigAction {
 }
 
 /// Full build: embedded SSR frontend + api. The site must be a release
-/// build (`cargo leptos build --release`).
+/// build (`cargo leptos build --release`). Non-`site` builds get their
+/// router from [`Ctx::router`] (core owns that branching).
 #[cfg(feature = "site")]
-fn app_router(config: &AppConfig, listen: SocketAddr) -> axum::Router {
-    let site_root = config
-        .site_root
-        .clone()
-        .unwrap_or_else(AppPaths::default_site_root);
+fn site_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
+    // Relative site_root resolves against the config dir; absent =
+    // the cargo-leptos output (dev runs from the workspace).
+    let site_root = ctx
+        .config
+        .site_root_resolved(&ctx.paths.app_config_dir, "target/site");
     if !site_root.join("pkg").exists() {
         tracing::warn!(
             site_root = %site_root.display(),
@@ -90,62 +93,43 @@ fn app_router(config: &AppConfig, listen: SocketAddr) -> axum::Router {
     let options = tauri_leptos_ui::server::leptos_options(listen);
     tauri_leptos_ui::server::router(
         options,
-        tauri_leptos_core::assets::DirAssets(site_root),
-        config,
-    )
-}
-
-/// Dev build: api lives here (stable across frontend rebuilds), pages
-/// and assets come from the watch server through the reverse proxy.
-#[cfg(all(feature = "dev", not(feature = "site")))]
-fn app_router(config: &AppConfig, _listen: SocketAddr) -> axum::Router {
-    use tauri_leptos_core::assets::{Assets, ProxyAssets};
-    tracing::info!(upstream = %config.dev.upstream, "dev server (api + proxy to the watch)");
-    server::api_router(&config.cors_origins)
-        .merge(ProxyAssets(config.dev.upstream.clone()).into_router(axum::Router::new()))
-}
-
-/// Api-only build: a remote api server for frontends running elsewhere.
-#[cfg(not(any(feature = "site", feature = "dev")))]
-fn app_router(config: &AppConfig, _listen: SocketAddr) -> axum::Router {
-    tracing::info!("api-only server");
-    server::api_router(&config.cors_origins).route(
-        "/",
-        axum::routing::get(|| async { "tauri-leptos api server" }),
+        tauri_leptos_core::assets::StaticAssets::from_site_root(site_root),
+        &ctx.config,
     )
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let cli = Cli::parse();
-    let app_dir = cli.app_dir.or_else(app_dir_from_env);
-    let paths = AppPaths::resolve_standalone(app_dir.as_deref())?;
 
-    match cli.command {
+    let command = cli.command.unwrap_or(Command::Serve {
+        host: None,
+        port: None,
+        log_to_file: false,
+    });
+    match command {
         Command::Serve {
             host,
             port,
             log_to_file,
         } => {
             // Invalid config is a hard error: systemd must see the failure.
-            let config = AppConfig::load(&paths)?;
+            let ctx = Ctx::resolve(cli.app_dir)?;
             let listen = SocketAddr::new(
-                host.unwrap_or_else(|| config.listen.ip()),
-                port.unwrap_or_else(|| config.listen.port()),
+                host.unwrap_or_else(|| ctx.config.listen.ip()),
+                port.unwrap_or_else(|| ctx.config.listen.port()),
             );
-            let log_to_file = log_to_file || config.log_to_file;
+            let log_to_file = log_to_file || ctx.config.log_to_file;
+            let _log_guard = logging::init(log_to_file.then_some(ctx.paths.app_log_dir.as_path()));
 
-            let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
-            paths.ensure_dirs()?;
-
-            let app = app_router(&config, listen);
-
-            let srv = server::Server::bind(listen)?;
-            tracing::info!(addr = %srv.local_addr()?, "server up");
-            tracing::debug!(?paths, "resolved app paths");
-            srv.serve(app, server::shutdown_signal()).await?;
+            let app = tauri_leptos_core::app::app(ctx);
+            #[cfg(feature = "site")]
+            let app = app.with_router(|ctx, addr| Ok(site_router(ctx, addr)));
+            app.serve(listen)?.await?;
         }
         Command::Config { action } => {
+            let paths =
+                AppPaths::resolve_standalone(cli.app_dir.or_else(app_dir_from_env).as_deref())?;
             let default_path = || paths.app_config_dir.join(CONFIG_FILE);
             match action {
                 ConfigAction::Write { path } => {

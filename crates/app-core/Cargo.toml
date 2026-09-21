@@ -13,7 +13,11 @@ tracing-appender.workspace = true
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
-axum-reverse-proxy = { workspace = true, optional = true }
+axum-reverse-proxy.workspace = true
+mime_guess = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+tauri = { workspace = true, optional = true }
+tauri-plugin-fs = { workspace = true, optional = true }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -23,8 +27,14 @@ toml.workspace = true
 paranoid-android.workspace = true
 
 [features]
-# Dev proxy backend (assets::ProxyAssets) for builds without leptos.
-dev = ["dep:axum-reverse-proxy"]
+# Tauri integration: StaticAssets::from_tauri_fs (APK-safe asset
+# access via the fs plugin) and AppPaths::from_tauri (real path API).
+tauri = [
+  "dep:tauri",
+  "dep:tauri-plugin-fs",
+  "dep:mime_guess",
+  "dep:tokio-util",
+]
 
 [lints]
 workspace = true

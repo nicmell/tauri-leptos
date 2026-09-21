@@ -31,7 +31,7 @@ pub struct AppConfig {
     pub cors_origins: Vec<String>,
     /// Also write logs to a daily-rolling file in the app log dir.
     pub log_to_file: bool,
-    /// Dev-build settings (`--features dev`).
+    /// Dev settings (the tauri shell's dev runs).
     pub dev: DevConfig,
 }
 
@@ -84,7 +84,25 @@ impl std::error::Error for ConfigError {}
 
 impl AppConfig {
     pub fn parse(text: &str) -> Result<Self, toml::de::Error> {
-        toml::from_str(text)
+        let config: Self = toml::from_str(text)?;
+        config.validate().map_err(serde::de::Error::custom)?;
+        Ok(config)
+    }
+
+    /// Semantic checks beyond TOML shape — fail at load time, not at
+    /// router construction (the dev proxy panics on a malformed URI).
+    fn validate(&self) -> Result<(), String> {
+        let upstream = &self.dev.upstream;
+        let uri: axum::http::Uri = upstream
+            .parse()
+            .map_err(|e| format!("dev.upstream `{upstream}`: {e}"))?;
+        if uri.scheme_str() != Some("http") {
+            return Err(format!(
+                "dev.upstream `{upstream}`: must be an http:// URL \
+                 (the dev proxy speaks plain http to the watch)"
+            ));
+        }
+        Ok(())
     }
 
     pub fn to_toml(&self) -> String {
@@ -153,6 +171,13 @@ mod tests {
     #[test]
     fn unknown_fields_are_rejected() {
         assert!(AppConfig::parse("nonsense = true\n").is_err());
+    }
+
+    #[test]
+    fn malformed_dev_upstream_is_rejected() {
+        assert!(AppConfig::parse("[dev]\nupstream = \"not a url\"\n").is_err());
+        assert!(AppConfig::parse("[dev]\nupstream = \"https://127.0.0.1:3001\"\n").is_err());
+        assert!(AppConfig::parse("[dev]\nupstream = \"http://127.0.0.1:3001\"\n").is_ok());
     }
 
     #[test]

@@ -10,7 +10,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use axum::Json;
 use axum::extract::Query;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
 
@@ -72,10 +72,26 @@ pub async fn shutdown_signal() {
 /// call `/api` cross-origin (empty = same-origin only, no layer;
 /// `"*"` = any origin). Web sockets are not subject to CORS.
 pub fn api_router(cors_origins: &[String]) -> axum::Router {
+    let ws_origins: Vec<String> = cors_origins.to_vec();
     let router = axum::Router::new()
         .route("/api/hello", get(hello))
-        .route("/api/counter", get(counter))
-        .route("/ws", get(ws_upgrade));
+        // POST: the demo counter mutates state.
+        .route("/api/counter", axum::routing::post(counter))
+        .route(
+            "/ws",
+            get(ws_upgrade).route_layer(axum::middleware::from_fn(
+                move |req: axum::extract::Request, next: axum::middleware::Next| {
+                    let allowed = ws_origins.clone();
+                    async move {
+                        if origin_allowed(req.headers(), &allowed) {
+                            next.run(req).await
+                        } else {
+                            axum::http::StatusCode::FORBIDDEN.into_response()
+                        }
+                    }
+                },
+            )),
+        );
     if cors_origins.is_empty() {
         return router;
     }
@@ -116,6 +132,30 @@ async fn counter() -> Json<serde_json::Value> {
     static COUNT: AtomicU64 = AtomicU64::new(0);
     let value = COUNT.fetch_add(1, Ordering::Relaxed) + 1;
     Json(serde_json::json!({ "count": value }))
+}
+
+/// Browsers always allow cross-origin `WebSocket`s, so the server must
+/// check the `Origin` itself: same-origin (Origin host == Host header)
+/// or one of `cors_origins` (`"*"` = any). Requests without an Origin
+/// (non-browser clients) pass.
+fn origin_allowed(headers: &axum::http::HeaderMap, allowed: &[String]) -> bool {
+    let Some(origin) = headers
+        .get(axum::http::header::ORIGIN)
+        .and_then(|v| v.to_str().ok())
+    else {
+        return true;
+    };
+    if allowed.iter().any(|a| a == "*" || a == origin) {
+        return true;
+    }
+    let origin_host = origin
+        .strip_prefix("https://")
+        .or_else(|| origin.strip_prefix("http://"))
+        .unwrap_or(origin);
+    headers
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|host| host == origin_host)
 }
 
 async fn ws_upgrade(ws: WebSocketUpgrade) -> Response {

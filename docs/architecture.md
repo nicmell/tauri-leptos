@@ -46,7 +46,7 @@ Dev notes:
 
 - The dev split is invisible to the client: one origin, relative URLs.
   The shell process — and its api state — **survives frontend
-  rebuilds** (`/api/counter` proves it). Pages are rendered by the
+  rebuilds** (POST `/api/counter` proves it). Pages are rendered by the
   watch (dev hot-reload instrumentation only hydrates against its own
   process), server-fn POSTs pass through the reverse proxy.
 - `view!`/CSS edits hot-patch in place; edits to Rust logic rebuild

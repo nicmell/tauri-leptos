@@ -31,7 +31,7 @@ cargo tauri dev          # spawns the watch, window on an ephemeral origin
 ```
 
 The dev shell serves one origin (api in-process + pages proxied from
-the watch): api state survives frontend rebuilds (try `/api/counter`),
+the watch): api state survives frontend rebuilds (try `curl -X POST .../api/counter`),
 and the origin is a plain http server — open the URL logged at startup
 in a browser for browser work. Everything is same-origin and
 relative, in dev and production alike.

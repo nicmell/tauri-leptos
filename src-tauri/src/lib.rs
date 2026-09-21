@@ -18,13 +18,15 @@ mod server {
 
         use tauri_leptos_core::logging::{self, LogGuard};
 
+        // Keep the file-appender guard (if any) alive for the process.
+        static LOG_GUARD: OnceLock<LogGuard> = OnceLock::new();
+
         // Strict: first launch seeds the default config, a broken one
         // keeps the app from starting.
         let ctx = Ctx::from_tauri(app, cfg!(dev))?;
 
         // Logging starts here, once the config says whether to add the
-        // rolling file; keep the appender guard alive for the process.
-        static LOG_GUARD: OnceLock<LogGuard> = OnceLock::new();
+        // rolling file.
         let _ = LOG_GUARD.set(logging::init(
             ctx.config
                 .log_to_file

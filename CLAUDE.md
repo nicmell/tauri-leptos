@@ -58,9 +58,9 @@ bacon                                           # watch loop (c=clippy w=wasm t=
 - Ports: 3000 = app origin (cli entry/serve default), 3001 = watch
   (internal; `dev.upstream` in config, leptos `site-addr`, `devUrl` must
   all match), 3002 = reload, ephemeral = shell. Build features pick the
-  content: feature `site` (default) = embedded frontend, cli without
-  it = api only; the shell under `cfg(dev)` = api + reverse proxy to
-  the watch (no dev cargo feature anywhere).
+  content: the shell's feature `site` (default) = embedded frontend;
+  under `cfg(dev)` = api + reverse proxy to the watch (no dev cargo
+  feature anywhere; the cli has no features — always the full server).
 - Any server built with plain cargo serves a **release** site — dev
   cargo-leptos builds only hydrate against their own watch.
 - No LICENSE yet: crates are `publish = false`, cargo-deny ignores

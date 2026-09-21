@@ -45,21 +45,20 @@ mod server {
         // keeps the app from starting.
         let ctx = Ctx::from_tauri(app.handle())?;
 
-        let core_app = tauri_leptos_core::app::app(ctx);
         // Dev: api in-process + reverse proxy to the watch (state
         // survives frontend rebuilds); release: the embedded site.
         #[cfg(dev)]
-        let core_app =
-            core_app.with_router(|ctx, _| Ok(tauri_leptos_core::server::dev_router(&ctx.config)));
+        let router = |ctx: &Ctx, _| Ok(tauri_leptos_core::server::dev_router(&ctx.config));
         #[cfg(not(dev))]
-        let core_app = {
+        let router = {
             use tauri::Manager;
             let handle = app.handle().clone();
             let resource_dir = app.path().resource_dir()?;
-            core_app.with_router(move |ctx, addr| Ok(site_router(handle, &resource_dir, ctx, addr)))
+            move |ctx: &Ctx, addr| Ok(site_router(handle, &resource_dir, ctx, addr))
         };
 
-        let serving = core_app.serve(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))?;
+        let serving = tauri_leptos_core::app::app(ctx, router)
+            .serve(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))?;
         let addr = serving.addr();
         tauri::async_runtime::spawn(async move {
             if let Err(e) = serving.await {

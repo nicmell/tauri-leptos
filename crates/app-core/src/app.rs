@@ -1,9 +1,8 @@
-//! The app: one builder for every entrypoint. `app(ctx)` serves the
-//! api-only router by default; `with_router` swaps in a custom one
-//! (the leptos site router in `site` builds, the dev proxy in the
-//! shell's dev runs). `serve` binds immediately — pass port 0 for an
-//! ephemeral port — and returns a [`Serving`]: read the bound address,
-//! then await it (or hand it to a runtime spawn).
+//! The app: one entrypoint shape for cli and shell. `app(ctx, router)`
+//! takes the router factory (the leptos site router, or the dev proxy
+//! in the shell's dev runs); `serve` binds immediately — pass port 0
+//! for an ephemeral port — and returns a [`Serving`]: read the bound
+//! address, then await it (or hand it to a runtime spawn).
 
 use std::future::Future;
 use std::io;
@@ -21,26 +20,22 @@ type RouterFactory = Box<dyn FnOnce(&Ctx, SocketAddr) -> Result<Router, BoxError
 
 pub struct App {
     ctx: Ctx,
-    router: Option<RouterFactory>,
+    router: RouterFactory,
 }
 
-pub fn app(ctx: Ctx) -> App {
-    App { ctx, router: None }
+/// The factory receives the bound address — known only after `serve`
+/// binds, which is why it is a factory and not a router.
+pub fn app(
+    ctx: Ctx,
+    router: impl FnOnce(&Ctx, SocketAddr) -> Result<Router, BoxError> + Send + 'static,
+) -> App {
+    App {
+        ctx,
+        router: Box::new(router),
+    }
 }
 
 impl App {
-    /// Replace the default (api-only) router. The factory receives the
-    /// bound address — known only after `serve` binds, which is why
-    /// this is a factory and not a router.
-    #[must_use]
-    pub fn with_router(
-        mut self,
-        f: impl FnOnce(&Ctx, SocketAddr) -> Result<Router, BoxError> + Send + 'static,
-    ) -> Self {
-        self.router = Some(Box::new(f));
-        self
-    }
-
     /// Ensure the app dirs, bind `listen`, build the router and return
     /// the serving future together with the bound address. The server
     /// runs until the shutdown signal (ctrl-c / SIGTERM).
@@ -48,10 +43,7 @@ impl App {
         self.ctx.paths.ensure_dirs()?;
         let server = Server::bind(listen)?;
         let addr = server.local_addr()?;
-        let router = match self.router {
-            Some(f) => f(&self.ctx, addr)?,
-            None => self.ctx.router(),
-        };
+        let router = (self.router)(&self.ctx, addr)?;
         tracing::info!(%addr, "server up");
         Ok(Serving {
             addr,

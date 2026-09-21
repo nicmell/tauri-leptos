@@ -22,10 +22,11 @@ src-tauri        Tauri shell: in-process server on an ephemeral port,
 
 ## One origin everywhere
 
-Every mode serves a single origin. The only cargo feature is the
-cli's and shell's `site` (default: the embedded SSR frontend + api;
-a cli without it is a pure api server). Dev vs release in the shell
-is `cfg(dev)`, emitted by tauri-build — no dev feature anywhere:
+Every mode serves a single origin. The only cargo feature left is
+the shell's `site` (default; its dev fast path skips leptos). The cli
+has none — it is always the full server (a remote api server is the
+same binary with `cors_origins` set). Dev vs release in the shell is
+`cfg(dev)`, emitted by tauri-build:
 
 ```
 dev      cargo leptos watch ──► runs the cli (site build) on :3001
@@ -76,7 +77,7 @@ shell's origin is ephemeral, so a device pointing at a remote api
 typically needs `"*"` (an explicit, documented choice). WebSockets
 are not subject to CORS. Example: the android app with the embedded
 frontend and `api_base = "http://<pi>:3000"`, the Pi running an
-api-only build (`--no-default-features`) with matching
+full server with matching
 `cors_origins`.
 
 ## Asset backends (core::assets::Assets)
@@ -138,10 +139,10 @@ first run seeds the defaults, an invalid config refuses to start) and
 runs through `core::app`:
 
 ```rust
-app(ctx)                      // default router: api-only
-    .with_router(factory)     // site (leaves) or dev proxy (shell cfg(dev))
-    .serve(listen)?           // binds now — port 0 = ephemeral
-    .await                    // or hand the Serving to a runtime spawn
+app(ctx, factory)             // factory: site router, or the shell's
+    .serve(listen)?           //   dev proxy under cfg(dev)
+    .await                    // binds now (port 0 = ephemeral); await it
+                              //   or hand the Serving to a runtime spawn
 ```
 
 The factory receives the bound address (the site router needs it, and
@@ -181,8 +182,8 @@ cargo leptos build --release # site for plain-cargo servers
 standalone: site and bind from the config — the deb ships
 `/etc/tauri-leptos/config.toml` (a conffile: apt keeps local edits)
 with `listen = "0.0.0.0:3000"` and the site path, and the unit is a
-bare `serve`. Build without default features
-for an api-only server (remote frontends). Packaging:
+bare `serve`. A remote api server is the same
+full server with `cors_origins` set. Packaging:
 `scripts/build-deb.sh` → deb with binary+site+system unit
 (enable/start on install). See
 [install/raspberry-pi.md](install/raspberry-pi.md).

@@ -78,12 +78,6 @@ pub fn dev_router(config: &crate::config::AppConfig) -> axum::Router {
         .merge(ProxyAssets(config.dev.upstream.clone()).into_router(axum::Router::new()))
 }
 
-/// Api-only router: a remote api server for frontends elsewhere.
-pub fn api_only_router(config: &crate::config::AppConfig) -> axum::Router {
-    tracing::info!("api-only server");
-    api_router(&config.cors_origins).route("/", get(|| async { "tauri-leptos api server" }))
-}
-
 /// The stateful API half. `cors_origins` allows remote frontends to
 /// call `/api` cross-origin (empty = same-origin only, no layer;
 /// `"*"` = any origin). Web sockets are not subject to CORS.

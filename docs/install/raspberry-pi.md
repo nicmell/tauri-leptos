@@ -62,9 +62,9 @@ cargo leptos build --release
 cargo run -p tauri-leptos-cli -- serve --host 0.0.0.0
 ```
 
-For an api-only Pi (frontends elsewhere) build with
-`--no-default-features` and set `cors_origins` in the config to the
-frontend origins (`"*"` for tauri shells — their origin is ephemeral).
+For a Pi serving remote frontends, set `cors_origins` in the config
+to the frontend origins (`"*"` for tauri shells — their origin is
+ephemeral); the site the server also carries is harmless.
 
 Site and bind come from the config. The deb installs
 `/etc/tauri-leptos/config.toml` (a conffile — apt keeps your edits on

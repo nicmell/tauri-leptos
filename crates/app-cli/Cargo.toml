@@ -11,12 +11,7 @@ clap.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tauri-leptos-core.workspace = true
-tauri-leptos-ui = { path = "../ui", features = ["ssr"], optional = true }
-
-[features]
-default = ["site"]
-# Embedded SSR frontend (leptos). Without it the binary has no site.
-site = ["dep:tauri-leptos-ui"]
+tauri-leptos-ui = { path = "../ui", features = ["ssr"] }
 
 [lints]
 workspace = true

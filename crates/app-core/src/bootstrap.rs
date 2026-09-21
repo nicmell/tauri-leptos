@@ -59,14 +59,6 @@ impl Ctx {
         let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
         Ok(Self { paths, config })
     }
-
-    /// The router for non-`site` builds: the api-only server. `site`
-    /// builds construct the leptos router themselves (core cannot
-    /// depend on the ui crate); the tauri dev shell picks
-    /// [`crate::server::dev_router`] under `cfg(dev)`.
-    pub fn router(&self) -> axum::Router {
-        crate::server::api_only_router(&self.config)
-    }
 }
 
 #[cfg(test)]

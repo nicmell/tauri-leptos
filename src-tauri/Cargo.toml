@@ -28,9 +28,6 @@ axum.workspace = true
 default = ["site"]
 # Embedded SSR frontend served from the bundled resources.
 site = ["dep:tauri-leptos-ui"]
-# Dev shell (no leptos): api in-process, pages/assets reverse-proxied
-# from the `cargo leptos watch` server.
-dev = ["tauri-leptos-core/dev"]
 
 [lints]
 workspace = true

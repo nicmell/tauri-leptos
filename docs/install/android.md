@@ -46,7 +46,7 @@ reached through `adb reverse` — 3001 (watch), 3002 (leptos reload
 socket). With an emulator or device connected:
 
 ```bash
-./scripts/android-dev.sh    # reverses + android dev (dev feature set)
+./scripts/android-dev.sh    # reverses + android dev (leptos build skipped)
 ```
 
 The window always loads the local in-process origin, so Tauri's

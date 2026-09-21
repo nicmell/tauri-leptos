@@ -62,10 +62,8 @@ impl Assets for StaticAssets {
 /// `cargo leptos watch` server, which renders the (hot-reload
 /// instrumented) pages itself — `on_miss` never applies. Web sockets
 /// pass through untouched.
-#[cfg(feature = "dev")]
 pub struct ProxyAssets(pub String);
 
-#[cfg(feature = "dev")]
 impl Assets for ProxyAssets {
     fn into_router(self, _on_miss: Router) -> Router {
         axum_reverse_proxy::ReverseProxy::new("/", &self.0).into()

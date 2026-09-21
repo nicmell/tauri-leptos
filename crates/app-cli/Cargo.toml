@@ -17,9 +17,6 @@ tauri-leptos-ui = { path = "../ui", features = ["ssr"], optional = true }
 default = ["site"]
 # Embedded SSR frontend (leptos). Without it the binary has no site.
 site = ["dep:tauri-leptos-ui"]
-# Dev proxy to the cargo-leptos watch server (mutually exclusive with
-# `site`): api stays here, pages/assets come from the watch.
-dev = ["tauri-leptos-core/dev"]
 
 [lints]
 workspace = true

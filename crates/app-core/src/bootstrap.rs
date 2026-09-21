@@ -60,20 +60,12 @@ impl Ctx {
         Ok(Self { paths, config })
     }
 
-    /// The router for non-`site` builds — the feature branching lives
-    /// here: core's `dev` feature (enabled by the leaf's dev build)
-    /// picks the api+proxy router, otherwise it is the api-only
-    /// server. `site` builds construct the leptos router themselves
-    /// (core cannot depend on the ui crate).
+    /// The router for non-`site` builds: the api-only server. `site`
+    /// builds construct the leptos router themselves (core cannot
+    /// depend on the ui crate); the tauri dev shell picks
+    /// [`crate::server::dev_router`] under `cfg(dev)`.
     pub fn router(&self) -> axum::Router {
-        #[cfg(feature = "dev")]
-        {
-            crate::server::dev_router(&self.config)
-        }
-        #[cfg(not(feature = "dev"))]
-        {
-            crate::server::api_only_router(&self.config)
-        }
+        crate::server::api_only_router(&self.config)
     }
 }
 

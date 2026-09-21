@@ -21,21 +21,18 @@ src-tauri        Tauri shell: in-process server on an ephemeral port,
                  always; build features pick what it serves.
 ```
 
-## One origin, feature-picked content
+## One origin everywhere
 
-Every mode serves a single origin; the build features of the cli and
-the shell pick what lives behind it:
-
-| features | serves |
-| --- | --- |
-| `site` (default) | embedded SSR frontend + api |
-| `dev` | api locally, pages/assets reverse-proxied from the watch |
-| neither (cli only) | api only — a remote api server |
+Every mode serves a single origin. The only cargo feature is the
+cli's and shell's `site` (default: the embedded SSR frontend + api;
+a cli without it is a pure api server). Dev vs release in the shell
+is `cfg(dev)`, emitted by tauri-build — no dev feature anywhere:
 
 ```
 dev      cargo leptos watch ──► watch server :3001 (SSR, hot reload, internal)
-         cli/shell dev build ──► api + reverse proxy to :3001
-         browser entry :3000 (cli) · tauri window: ephemeral port
+         cargo tauri dev    ──► shell: api in-process + reverse proxy to :3001
+                                window on the ephemeral origin (a plain
+                                http server — open it in a browser too)
 cli      tauri-leptos-cli serve ──► --host/--port (default 127.0.0.1:3000)
 tauri    in-process server on an ephemeral port, window created on it
 ```
@@ -43,15 +40,15 @@ tauri    in-process server on an ephemeral port, window created on it
 Dev notes:
 
 - The dev split is invisible to the client: one origin, relative URLs.
-  The api process (cli or shell) **survives frontend rebuilds** —
-  `/api/counter` proves it. Pages are rendered by the watch (dev
-  hot-reload instrumentation only hydrates against its own process),
-  server-fn POSTs pass through the reverse proxy.
+  The shell process — and its api state — **survives frontend
+  rebuilds** (`/api/counter` proves it). Pages are rendered by the
+  watch (dev hot-reload instrumentation only hydrates against its own
+  process), server-fn POSTs pass through the reverse proxy.
 - `view!`/CSS edits hot-patch in place; edits to Rust logic rebuild
   only the watch server.
-- `cargo tauri dev -- --no-default-features --features dev` spawns the
-  watch (`beforeDevCommand`) and proxies to it; runner args pass the
-  feature set through to cargo.
+- `cargo tauri dev` spawns the watch (`beforeDevCommand`) and proxies
+  to it. `-- --no-default-features` is the optional fast path: it
+  skips the unused leptos build of the shell.
 - **Server functions stay stateless by convention**; state lives behind
   `/api` and `/ws` in `core::server::api_router`.
 
@@ -91,7 +88,7 @@ renders the SSR shell in full builds:
 | impl | used by | resolution |
 | --- | --- | --- |
 | `StaticAssets::from_site_root(dir)` (core) | cli `site` builds, watch server, tests | `tower_http::ServeDir` (traversal guard, ETag, ranges) |
-| `ProxyAssets(url)` (core, feature `dev`) | cli/shell dev builds | reverse proxy to the watch (`axum-reverse-proxy`) |
+| `ProxyAssets(url)` (core) | the shell under `cfg(dev)` | reverse proxy to the watch (`axum-reverse-proxy`) |
 | `StaticAssets::from_tauri_fs(app, base)` (core, feature `tauri`) | desktop bundle AND Android, same code | the resource store via the fs plugin (desktop: real files; Android: APK assets as file descriptors) |
 
 On Android there is no extraction: assets are opened from the APK per
@@ -160,11 +157,9 @@ default.
 ## Dev workflows
 
 ```bash
-cargo leptos watch           # the frontend half (:3001, internal)
-cargo run -p tauri-leptos-cli --no-default-features --features dev -- serve
-                             # the api half; browser entry on :3000
-cargo tauri dev -- --no-default-features --features dev
-                             # desktop: spawns the watch, ephemeral window
+cargo tauri dev              # spawns the watch; window + browser on the
+                             # ephemeral origin (logged at startup)
+cargo tauri dev -- --no-default-features   # same, skipping the unused leptos build
 cargo tauri build            # production bundle (embedded frontend)
 cargo leptos build --release # site for plain-cargo servers
 ```

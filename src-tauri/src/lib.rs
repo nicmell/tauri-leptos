@@ -1,9 +1,8 @@
-#[cfg(all(feature = "site", feature = "dev"))]
-compile_error!("features `site` and `dev` are mutually exclusive");
-#[cfg(not(any(feature = "site", feature = "dev")))]
-compile_error!("enable `site` (default) or `dev`");
-#[cfg(all(feature = "dev", not(dev)))]
-compile_error!("feature `dev` is for `tauri dev` runs only");
+// Dev runs (cfg(dev), emitted by tauri-build) proxy to the watch and
+// need no leptos: `-- --no-default-features` is the fast path. Release
+// builds must embed the frontend.
+#[cfg(all(not(dev), not(feature = "site")))]
+compile_error!("release builds need the `site` feature (default)");
 
 use std::sync::OnceLock;
 
@@ -16,9 +15,7 @@ use tauri_leptos_core::logging::{self, LogGuard};
 mod server {
 
     /// The embedded frontend: SSR + assets from the bundled resources.
-    /// The dev shell gets its router from [`Ctx::router`] instead
-    /// (core owns that branching).
-    #[cfg(feature = "site")]
+    #[cfg(all(feature = "site", not(dev)))]
     fn site_router(
         app: &tauri::App,
         addr: std::net::SocketAddr,
@@ -53,10 +50,12 @@ mod server {
 
         let server = Server::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
         let addr = server.local_addr()?;
-        #[cfg(feature = "site")]
+        // Dev: api in-process + reverse proxy to the watch (state
+        // survives frontend rebuilds); release: the embedded site.
+        #[cfg(dev)]
+        let router = tauri_leptos_core::server::dev_router(&ctx.config);
+        #[cfg(not(dev))]
         let router = site_router(app, addr, &ctx.config)?;
-        #[cfg(not(feature = "site"))]
-        let router = ctx.router();
         tracing::info!(%addr, "in-process server");
         tauri::async_runtime::spawn(async move {
             // No shutdown signal: the server lives as long as the process.

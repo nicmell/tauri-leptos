@@ -68,10 +68,9 @@ pub async fn shutdown_signal() {
 }
 
 /// The API surface — merged with the SSR routes by the ui crate.
-/// Dev-build router: the api lives here (stable across frontend
-/// rebuilds), pages and assets come from the watch server through
-/// the reverse proxy.
-#[cfg(feature = "dev")]
+/// Dev router (the tauri shell under `cfg(dev)`): the api lives here
+/// (stable across frontend rebuilds), pages and assets come from the
+/// watch server through the reverse proxy.
 pub fn dev_router(config: &crate::config::AppConfig) -> axum::Router {
     use crate::assets::{Assets, ProxyAssets};
     tracing::info!(upstream = %config.dev.upstream, "dev server (api + proxy to the watch)");

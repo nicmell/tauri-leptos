@@ -4,12 +4,10 @@
 //! the build:
 //!
 //! - `site` (default): embedded SSR frontend + api.
-//! - `dev`: api here, pages/assets reverse-proxied from the
-//!   `cargo leptos watch` server — api state survives frontend rebuilds.
-//! - neither: api only (a remote api server for frontends elsewhere).
-
-#[cfg(all(feature = "site", feature = "dev"))]
-compile_error!("features `site` and `dev` are mutually exclusive");
+//! - without it: api only (a remote api server for frontends
+//!   elsewhere). Dev happens in the tauri shell (`cargo tauri dev`),
+//!   whose ephemeral origin is a plain http server — open it in a
+//!   browser for browser work.
 
 use std::error::Error;
 use std::net::{IpAddr, SocketAddr};

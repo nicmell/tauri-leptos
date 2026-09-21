@@ -14,17 +14,19 @@ use tauri_leptos_core::logging::{self, LogGuard};
 /// builds keep the api local and reverse-proxy pages/assets from the
 /// `cargo leptos watch` server (android: through `adb reverse`).
 mod server {
-    use tauri_leptos_core::config::AppConfig;
 
     /// The embedded frontend: SSR + assets from the bundled resources.
     #[cfg(feature = "site")]
     fn app_router(
         app: &tauri::App,
         addr: std::net::SocketAddr,
-        config: &AppConfig,
+        config: &tauri_leptos_core::config::AppConfig,
     ) -> tauri::Result<axum::Router> {
         use tauri::Manager;
-        let resource_site = app.path().resource_dir()?.join("site");
+        let resource_dir = app.path().resource_dir()?;
+        // Relative site_root resolves against resource_dir; absent =
+        // the bundled "site" map.
+        let resource_site = config.site_root_resolved(&resource_dir, resource_dir.join("site"));
         tracing::info!(base = %resource_site.display(), "serving bundled resources");
         let assets = tauri_leptos_core::assets::StaticAssets::from_tauri_fs(
             app.handle().clone(),
@@ -39,14 +41,9 @@ mod server {
     fn app_router(
         _app: &tauri::App,
         _addr: std::net::SocketAddr,
-        config: &AppConfig,
+        config: &tauri_leptos_core::config::AppConfig,
     ) -> tauri::Result<axum::Router> {
-        use tauri_leptos_core::assets::{Assets, ProxyAssets};
-
-        let upstream = config.dev.upstream.clone();
-        tracing::info!(%upstream, "dev shell (api + proxy to the watch)");
-        Ok(tauri_leptos_core::server::api_router(&config.cors_origins)
-            .merge(ProxyAssets(upstream).into_router(axum::Router::new())))
+        Ok(tauri_leptos_core::server::dev_router(config))
     }
 
     /// Start the in-process single-origin server on an ephemeral port
@@ -59,10 +56,7 @@ mod server {
         use tauri_leptos_core::server::Server;
 
         // Best effort: the shell falls back to the default config.
-        let config = tauri_leptos_core::paths::AppPaths::from_tauri(app.handle())
-            .ok()
-            .and_then(|paths| AppConfig::load(&paths).ok())
-            .unwrap_or_default();
+        let config = tauri_leptos_core::config::Ctx::from_tauri(app.handle()).config;
 
         let server = Server::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
         let addr = server.local_addr()?;

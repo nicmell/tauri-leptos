@@ -16,7 +16,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use tauri_leptos_core::config::{AppConfig, CONFIG_FILE};
+use tauri_leptos_core::config::{AppConfig, CONFIG_FILE, Ctx};
 use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
 use tauri_leptos_core::{logging, server};
 
@@ -74,11 +74,12 @@ enum ConfigAction {
 /// Full build: embedded SSR frontend + api. The site must be a release
 /// build (`cargo leptos build --release`).
 #[cfg(feature = "site")]
-fn app_router(config: &AppConfig, listen: SocketAddr) -> axum::Router {
-    let site_root = config
-        .site_root
-        .clone()
-        .unwrap_or_else(AppPaths::default_site_root);
+fn app_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
+    // Relative site_root resolves against the config dir; absent =
+    // the cargo-leptos output (dev runs from the workspace).
+    let site_root = ctx
+        .config
+        .site_root_resolved(&ctx.paths.app_config_dir, "target/site");
     if !site_root.join("pkg").exists() {
         tracing::warn!(
             site_root = %site_root.display(),
@@ -91,35 +92,26 @@ fn app_router(config: &AppConfig, listen: SocketAddr) -> axum::Router {
     tauri_leptos_ui::server::router(
         options,
         tauri_leptos_core::assets::StaticAssets::from_site_root(site_root),
-        config,
+        &ctx.config,
     )
 }
 
 /// Dev build: api lives here (stable across frontend rebuilds), pages
 /// and assets come from the watch server through the reverse proxy.
 #[cfg(all(feature = "dev", not(feature = "site")))]
-fn app_router(config: &AppConfig, _listen: SocketAddr) -> axum::Router {
-    use tauri_leptos_core::assets::{Assets, ProxyAssets};
-    tracing::info!(upstream = %config.dev.upstream, "dev server (api + proxy to the watch)");
-    server::api_router(&config.cors_origins)
-        .merge(ProxyAssets(config.dev.upstream.clone()).into_router(axum::Router::new()))
+fn app_router(ctx: &Ctx, _listen: SocketAddr) -> axum::Router {
+    server::dev_router(&ctx.config)
 }
 
 /// Api-only build: a remote api server for frontends running elsewhere.
 #[cfg(not(any(feature = "site", feature = "dev")))]
-fn app_router(config: &AppConfig, _listen: SocketAddr) -> axum::Router {
-    tracing::info!("api-only server");
-    server::api_router(&config.cors_origins).route(
-        "/",
-        axum::routing::get(|| async { "tauri-leptos api server" }),
-    )
+fn app_router(ctx: &Ctx, _listen: SocketAddr) -> axum::Router {
+    server::api_only_router(&ctx.config)
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
-    let app_dir = cli.app_dir.or_else(app_dir_from_env);
-    let paths = AppPaths::resolve_standalone(app_dir.as_deref())?;
 
     match cli.command {
         Command::Serve {
@@ -128,24 +120,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
             log_to_file,
         } => {
             // Invalid config is a hard error: systemd must see the failure.
-            let config = AppConfig::load(&paths)?;
+            let ctx = Ctx::resolve(cli.app_dir)?;
             let listen = SocketAddr::new(
-                host.unwrap_or_else(|| config.listen.ip()),
-                port.unwrap_or_else(|| config.listen.port()),
+                host.unwrap_or_else(|| ctx.config.listen.ip()),
+                port.unwrap_or_else(|| ctx.config.listen.port()),
             );
-            let log_to_file = log_to_file || config.log_to_file;
+            let log_to_file = log_to_file || ctx.config.log_to_file;
 
-            let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
-            paths.ensure_dirs()?;
+            let _log_guard = logging::init(log_to_file.then_some(ctx.paths.app_log_dir.as_path()));
+            ctx.paths.ensure_dirs()?;
 
-            let app = app_router(&config, listen);
+            let app = app_router(&ctx, listen);
 
             let srv = server::Server::bind(listen)?;
             tracing::info!(addr = %srv.local_addr()?, "server up");
-            tracing::debug!(?paths, "resolved app paths");
+            tracing::debug!(paths = ?ctx.paths, "resolved app paths");
             srv.serve(app, server::shutdown_signal()).await?;
         }
         Command::Config { action } => {
+            let paths =
+                AppPaths::resolve_standalone(cli.app_dir.or_else(app_dir_from_env).as_deref())?;
             let default_path = || paths.app_config_dir.join(CONFIG_FILE);
             match action {
                 ConfigAction::Write { path } => {

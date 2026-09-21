@@ -133,10 +133,21 @@ absent = `target/site` (cli dev) / the bundled `site` map (shell).
 The deb ships `/etc/tauri-leptos/config.toml` with the explicit
 `/usr/share/tauri-leptos/site` path.
 
-Every entrypoint bootstraps through `config::Ctx` — `resolve`
-(strict, the cli), `resolve_lenient` (dev tools), `from_tauri` (the
-shell, feature `tauri`, real tauri path API with the `dirs` mirror as
-the standalone fallback).
+Every entrypoint bootstraps through `bootstrap::Ctx` (strict:
+first run seeds the defaults, an invalid config refuses to start) and
+runs through `core::app`:
+
+```rust
+app(ctx)                      // default router: api-only
+    .with_router(factory)     // site (leaves) or dev proxy (shell cfg(dev))
+    .serve(listen)?           // binds now — port 0 = ephemeral
+    .await                    // or hand the Serving to a runtime spawn
+```
+
+The factory receives the bound address (the site router needs it, and
+an ephemeral port exists only after the bind); `Serving::addr()` is
+what the shell puts in the window URL before spawning the future on
+`tauri::async_runtime`.
 
 ## Paths
 

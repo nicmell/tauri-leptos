@@ -16,8 +16,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use tauri_leptos_core::bootstrap::Ctx;
 use tauri_leptos_core::config::{AppConfig, CONFIG_FILE};
+use tauri_leptos_core::logging;
 use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
-use tauri_leptos_core::{logging, server};
 
 #[derive(Parser)]
 #[command(name = "tauri-leptos-cli", version, about = "tauri-leptos server")]
@@ -99,7 +99,7 @@ fn site_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let cli = Cli::parse();
 
     let command = cli.command.unwrap_or(Command::Serve {
@@ -120,19 +120,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 port.unwrap_or_else(|| ctx.config.listen.port()),
             );
             let log_to_file = log_to_file || ctx.config.log_to_file;
-
             let _log_guard = logging::init(log_to_file.then_some(ctx.paths.app_log_dir.as_path()));
-            ctx.paths.ensure_dirs()?;
 
+            let app = tauri_leptos_core::app::app(ctx);
             #[cfg(feature = "site")]
-            let app = site_router(&ctx, listen);
-            #[cfg(not(feature = "site"))]
-            let app = ctx.router();
-
-            let srv = server::Server::bind(listen)?;
-            tracing::info!(addr = %srv.local_addr()?, "server up");
-            tracing::debug!(paths = ?ctx.paths, "resolved app paths");
-            srv.serve(app, server::shutdown_signal()).await?;
+            let app = app.with_router(|ctx, addr| Ok(site_router(ctx, addr)));
+            app.serve(listen)?.await?;
         }
         Command::Config { action } => {
             let paths =

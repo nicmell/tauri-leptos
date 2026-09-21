@@ -74,7 +74,11 @@ the dev watch (devUrl, adb reverse) and the cli default.
 The frontend and the api can live on different hosts: whoever renders
 the SSR page injects its configured `api_base` into the
 `<meta name="api-base">` (always present; empty = same origin, the
-default), and the client sends fetch/WS there. The api host then
+default), and the client sends fetch/WS there. **Server functions are
+NOT covered**: they always call the origin that rendered the page —
+they are part of the frontend server, not of the remote api. Put
+remote-capable logic behind `/api`, keep server functions for
+page-local concerns. The api host then
 needs `cors_origins` covering the frontend's origin — the tauri
 shell's origin is ephemeral, so a device pointing at a remote api
 typically needs `"*"` (an explicit, documented choice). WebSockets

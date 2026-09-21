@@ -21,6 +21,14 @@ pub struct AppConfig {
     /// Frontend bundle directory for `site` builds. `None` = the
     /// platform default (`AppPaths::default_site_root`).
     pub site_root: Option<PathBuf>,
+    /// Origin the client sends api/ws requests to. `None` = same
+    /// origin. Set it when the api lives on another host (e.g. the
+    /// app on a device, the api on a Pi) — that host then needs the
+    /// matching `cors_origins`.
+    pub api_base: Option<String>,
+    /// Origins allowed to call `/api` cross-origin (remote frontends).
+    /// Empty = no CORS layer; `"*"` = any origin.
+    pub cors_origins: Vec<String>,
     /// Also write logs to a daily-rolling file in the app log dir.
     pub log_to_file: bool,
     /// Dev-build settings (`--features dev`).
@@ -41,6 +49,8 @@ impl Default for AppConfig {
         Self {
             listen: SocketAddr::from(([127, 0, 0, 1], 3000)),
             site_root: None,
+            api_base: None,
+            cors_origins: Vec::new(),
             log_to_file: false,
             dev: DevConfig::default(),
         }

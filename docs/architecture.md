@@ -68,6 +68,20 @@ for unbundled runs.
 The fixed `127.0.0.1:3000` remains only where an anchor is needed:
 the dev watch (devUrl, adb reverse) and the cli default.
 
+## Remote api (`api_base`)
+
+The frontend and the api can live on different hosts: whoever renders
+the SSR page injects its configured `api_base` into the
+`<meta name="api-base">` (always present; empty = same origin, the
+default), and the client sends fetch/WS there. The api host then
+needs `cors_origins` covering the frontend's origin — the tauri
+shell's origin is ephemeral, so a device pointing at a remote api
+typically needs `"*"` (an explicit, documented choice). WebSockets
+are not subject to CORS. Example: the android app with the embedded
+frontend and `api_base = "http://<pi>:3000"`, the Pi running an
+api-only build (`--no-default-features`) with matching
+`cors_origins`.
+
 ## Asset backends (core::assets::Assets)
 
 Site serving goes through one interface —
@@ -106,6 +120,8 @@ attach to the watch, everything else embeds the server.
 | --- | --- | --- |
 | `listen` | `127.0.0.1:3000` | server bind address |
 | `site_root` | platform default | frontend bundle dir (`site` builds) |
+| `api_base` | none (same origin) | origin the client sends api/ws to |
+| `cors_origins` | empty (no CORS) | origins allowed on `/api` (`"*"` = any) |
 | `log_to_file` | `false` | daily-rolling file in the app log dir |
 | `dev.upstream` | `http://127.0.0.1:3001` | watch server the dev proxy targets |
 

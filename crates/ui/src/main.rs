@@ -8,14 +8,23 @@
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::net::SocketAddr;
 
+    use tauri_leptos_core::config::AppConfig;
+    use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
     use tauri_leptos_core::{logging, server};
 
     let _log_guard = logging::init(None);
 
+    // Best effort: a dev tool falls back to defaults instead of refusing.
+    let api_base = AppPaths::resolve_standalone(app_dir_from_env().as_deref())
+        .ok()
+        .and_then(|paths| AppConfig::load(&paths).ok())
+        .unwrap_or_default()
+        .api_base;
     let listen = SocketAddr::from(([127, 0, 0, 1], 3001));
     let options = tauri_leptos_ui::server::leptos_options(listen);
     let app = tauri_leptos_ui::server::leptos_router(
         options,
+        api_base,
         tauri_leptos_core::assets::DirAssets("target/site".into()),
     );
 

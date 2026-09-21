@@ -80,4 +80,8 @@ Logs (server startup, asset serving, panics) go to logcat:
 adb logcat -s tauri-leptos
 ```
 
+To point the app at a remote api (e.g. a Pi), set
+`api_base = "http://<host>:3000"` in the device's config
+(app config dir) — the api host needs matching `cors_origins`.
+
 For release signing, follow <https://v2.tauri.app/distribute/sign/android/>.

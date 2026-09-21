@@ -32,14 +32,21 @@ pub fn leptos_options(addr: SocketAddr) -> LeptosOptions {
         .build()
 }
 
-/// SSR routes + asset serving through the given backend.
-pub fn leptos_router(options: LeptosOptions, assets: impl Assets) -> Router {
+/// SSR routes + asset serving through the given backend. `api_base` =
+/// the origin the client sends api/ws requests to, injected into the
+/// page (`None` = same origin).
+pub fn leptos_router(
+    options: LeptosOptions,
+    api_base: Option<String>,
+    assets: impl Assets,
+) -> Router {
     let routes = generate_route_list(App);
     // Non-asset misses render the app shell (its router shows the
     // fallback route), same behavior as leptos's own file handler.
     let render_shell = leptos_axum::render_app_to_stream({
         let options = options.clone();
-        move || shell(options.clone())
+        let api_base = api_base.clone();
+        move || shell(options.clone(), api_base.clone())
     });
     let on_miss = Router::new().fallback(move |req: Request| {
         let render_shell = render_shell.clone();
@@ -49,14 +56,19 @@ pub fn leptos_router(options: LeptosOptions, assets: impl Assets) -> Router {
     Router::new()
         .leptos_routes(&options, routes, {
             let options = options.clone();
-            move || shell(options.clone())
+            move || shell(options.clone(), api_base.clone())
         })
         .fallback_service(assets.into_router(on_miss))
         .with_state(options)
 }
 
-/// The complete router: SSR + the core API on one origin, everywhere —
-/// the client always uses relative URLs.
-pub fn router(options: LeptosOptions, assets: impl Assets) -> Router {
-    leptos_router(options, assets).merge(tauri_leptos_core::server::api_router())
+/// The complete `site`-build router: SSR + the core API on one origin,
+/// wired from the app config (`api_base`, `cors_origins`).
+pub fn router(
+    options: LeptosOptions,
+    assets: impl Assets,
+    config: &tauri_leptos_core::config::AppConfig,
+) -> Router {
+    leptos_router(options, config.api_base.clone(), assets)
+        .merge(tauri_leptos_core::server::api_router(&config.cors_origins))
 }

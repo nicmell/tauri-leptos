@@ -100,7 +100,11 @@ mod server {
 
     /// The embedded frontend: SSR + assets from the bundled resources.
     #[cfg(feature = "site")]
-    fn app_router(app: &tauri::App, addr: std::net::SocketAddr) -> tauri::Result<axum::Router> {
+    fn app_router(
+        app: &tauri::App,
+        addr: std::net::SocketAddr,
+        config: &tauri_leptos_core::config::AppConfig,
+    ) -> tauri::Result<axum::Router> {
         let resource_site = app.path().resource_dir()?.join("site");
         tracing::info!(base = %resource_site.display(), "serving bundled resources");
         let assets = TauriAssets {
@@ -108,25 +112,21 @@ mod server {
             base: resource_site,
         };
         let options = tauri_leptos_ui::server::leptos_options(addr);
-        Ok(tauri_leptos_ui::server::router(options, assets))
+        Ok(tauri_leptos_ui::server::router(options, assets, config))
     }
 
     /// Dev shell: api in-process, pages/assets proxied from the watch.
     #[cfg(feature = "dev")]
-    fn app_router(_app: &tauri::App, _addr: std::net::SocketAddr) -> tauri::Result<axum::Router> {
+    fn app_router(
+        _app: &tauri::App,
+        _addr: std::net::SocketAddr,
+        config: &tauri_leptos_core::config::AppConfig,
+    ) -> tauri::Result<axum::Router> {
         use tauri_leptos_core::assets::{Assets, ProxyAssets};
-        use tauri_leptos_core::config::AppConfig;
-        use tauri_leptos_core::paths::AppPaths;
 
-        // Best effort: the dev shell falls back to the default upstream.
-        let upstream = AppPaths::resolve_standalone(None)
-            .ok()
-            .and_then(|paths| AppConfig::load(&paths).ok())
-            .unwrap_or_default()
-            .dev
-            .upstream;
+        let upstream = config.dev.upstream.clone();
         tracing::info!(%upstream, "dev shell (api + proxy to the watch)");
-        Ok(tauri_leptos_core::server::api_router()
+        Ok(tauri_leptos_core::server::api_router(&config.cors_origins)
             .merge(ProxyAssets(upstream).into_router(axum::Router::new())))
     }
 
@@ -139,9 +139,16 @@ mod server {
 
         use tauri_leptos_core::server::Server;
 
+        // Best effort: the shell falls back to the default config —
+        // standalone path resolution mirrors the tauri path API.
+        let config = tauri_leptos_core::paths::AppPaths::resolve_standalone(None)
+            .ok()
+            .and_then(|paths| tauri_leptos_core::config::AppConfig::load(&paths).ok())
+            .unwrap_or_default();
+
         let server = Server::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
         let addr = server.local_addr()?;
-        let router = app_router(app, addr)?;
+        let router = app_router(app, addr, &config)?;
         tracing::info!(%addr, "in-process server");
         tauri::async_runtime::spawn(async move {
             // No shutdown signal: the server lives as long as the process.

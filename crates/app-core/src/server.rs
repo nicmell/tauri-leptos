@@ -68,11 +68,28 @@ pub async fn shutdown_signal() {
 }
 
 /// The API surface — merged with the SSR routes by the ui crate.
-pub fn api_router() -> axum::Router {
-    axum::Router::new()
+/// The stateful API half. `cors_origins` allows remote frontends to
+/// call `/api` cross-origin (empty = same-origin only, no layer;
+/// `"*"` = any origin). Web sockets are not subject to CORS.
+pub fn api_router(cors_origins: &[String]) -> axum::Router {
+    let router = axum::Router::new()
         .route("/api/hello", get(hello))
         .route("/api/counter", get(counter))
-        .route("/ws", get(ws_upgrade))
+        .route("/ws", get(ws_upgrade));
+    if cors_origins.is_empty() {
+        return router;
+    }
+    let origins = if cors_origins.iter().any(|o| o == "*") {
+        tower_http::cors::AllowOrigin::any()
+    } else {
+        tower_http::cors::AllowOrigin::list(cors_origins.iter().filter_map(|o| o.parse().ok()))
+    };
+    router.layer(
+        tower_http::cors::CorsLayer::new()
+            .allow_origin(origins)
+            .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+            .allow_headers([axum::http::header::CONTENT_TYPE]),
+    )
 }
 
 #[derive(Deserialize)]

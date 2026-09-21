@@ -62,6 +62,10 @@ cargo leptos build --release
 cargo run -p tauri-leptos-cli -- serve --host 0.0.0.0 --port 3000
 ```
 
+For an api-only Pi (frontends elsewhere) build with
+`--no-default-features` and set `cors_origins` in the config to the
+frontend origins (`"*"` for tauri shells — their origin is ephemeral).
+
 The site comes from `site_root` in the config; the Linux default is
 `/usr/share/tauri-leptos/site` (where the deb installs it). On a dev
 machine set `site_root = "target/site"` in the config (or use

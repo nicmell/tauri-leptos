@@ -88,7 +88,11 @@ fn app_router(config: &AppConfig, listen: SocketAddr) -> axum::Router {
     }
     tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
     let options = tauri_leptos_ui::server::leptos_options(listen);
-    tauri_leptos_ui::server::router(options, tauri_leptos_core::assets::DirAssets(site_root))
+    tauri_leptos_ui::server::router(
+        options,
+        tauri_leptos_core::assets::DirAssets(site_root),
+        config,
+    )
 }
 
 /// Dev build: api lives here (stable across frontend rebuilds), pages
@@ -97,15 +101,15 @@ fn app_router(config: &AppConfig, listen: SocketAddr) -> axum::Router {
 fn app_router(config: &AppConfig, _listen: SocketAddr) -> axum::Router {
     use tauri_leptos_core::assets::{Assets, ProxyAssets};
     tracing::info!(upstream = %config.dev.upstream, "dev server (api + proxy to the watch)");
-    server::api_router()
+    server::api_router(&config.cors_origins)
         .merge(ProxyAssets(config.dev.upstream.clone()).into_router(axum::Router::new()))
 }
 
 /// Api-only build: a remote api server for frontends running elsewhere.
 #[cfg(not(any(feature = "site", feature = "dev")))]
-fn app_router(_config: &AppConfig, _listen: SocketAddr) -> axum::Router {
+fn app_router(config: &AppConfig, _listen: SocketAddr) -> axum::Router {
     tracing::info!("api-only server");
-    server::api_router().route(
+    server::api_router(&config.cors_origins).route(
         "/",
         axum::routing::get(|| async { "tauri-leptos api server" }),
     )

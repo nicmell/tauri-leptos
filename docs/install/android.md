@@ -13,10 +13,10 @@ rustup target add aarch64-linux-android armv7-linux-androideabi \
 
 ## How the app runs on Android
 
-In production builds the Tauri lib starts the merged single-origin
-server in-process (the `ssr` code path is unconditional on Android
-outside dev) on an ephemeral local port; the window is created on it
-at runtime, like on desktop. Assets are served
+In non-dev builds the Tauri lib starts the merged single-origin
+server in-process on an ephemeral local port; the window is created on
+it at runtime, like on desktop (`cfg(dev)` is the shell's only
+compile-time branch). Assets are served
 **straight from the APK per request**: the `SiteAssets` implementation
 opens `resource_dir()/site/<path>` through the fs plugin's Rust API,
 which turns APK assets into real file descriptors (compressed assets

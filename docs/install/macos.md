@@ -10,10 +10,10 @@ cargo install cargo-leptos tauri-cli
 ## Build
 
 ```bash
-cargo tauri build -f ssr
+cargo tauri build
 ```
 
-`-f ssr` compiles the in-process single-origin server into the shell
+Non-dev builds compile the in-process single-origin server into the shell
 (without it the app expects a running `cargo leptos watch` — that is
 the dev configuration). `cargo leptos build --release` runs first
 automatically and the site is bundled into the app's Resources.

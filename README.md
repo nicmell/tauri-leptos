@@ -11,7 +11,7 @@ Full picture: [docs/architecture.md](docs/architecture.md).
 crates/ui        Leptos app: wasm client (hydrate) + dev frontend-server (ssr bin)
 crates/app-core  config + paths + logging + API router (/api, /ws)
 crates/app-cli   tauri-leptos-cli: the standalone server + config subcommands
-src-tauri        Tauri shell (feature ssr = in-process production server)
+src-tauri        Tauri shell (non-dev builds embed the in-process server)
 appdir/          repo-local app root for reproducible dev runs
 ```
 
@@ -43,7 +43,7 @@ is same-origin and relative, in dev and production alike.
 ## Production build
 
 ```bash
-cargo tauri build -f ssr          # desktop bundle
+cargo tauri build                 # desktop bundle
 ./scripts/build-deb.sh            # Raspberry Pi deb (binary + site + systemd unit)
 cargo tauri android build         # Android APK (server in-process, assets from the APK)
 ```

@@ -17,7 +17,7 @@ crates/app-core  config + paths + logging + the API router (axum:
 crates/app-cli   tauri-leptos-cli: thin wrapper around the merged
                  single-origin router (`--host`/`--port`/`--site-root`);
                  plus `config write|validate`.
-src-tauri        Tauri shell. Feature ssr = in-process production server.
+src-tauri        Tauri shell. Non-dev builds embed the in-process server.
 ```
 
 ## One router, one port — everywhere
@@ -46,7 +46,7 @@ Dev notes:
 
 ## Prod: the same router, in-process, ephemeral port
 
-`cargo tauri build -f ssr`: the shell binds the merged router
+`cargo tauri build`: the shell binds the merged router
 in-process on `127.0.0.1:0` and creates the window at runtime
 (`WebviewWindowBuilder` in setup) on the real bound address — no fixed
 port can ever conflict with something else on the user's machine. The
@@ -70,15 +70,15 @@ the router's fallback (stream + mime on hit, SSR shell on miss):
 
 On Android there is no extraction: assets are opened from the APK per
 request (compressed assets are cache-copied by the plugin — correct;
-`noCompress` would yield raw-APK fds). The server runs unconditionally
-there (`any(feature ssr, target_os android)`).
+`noCompress` would yield raw-APK fds). The shell's only compile-time branch is `cfg(dev)`: dev builds
+attach to the watch, everything else embeds the server.
 
 ## Asset naming and site builds
 
 - `.cargo/config.toml` pins `LEPTOS_OUTPUT_NAME`: leptos derives asset
   URLs (e.g. `pkg/tauri-leptos.wasm`) from it at compile time, and only
   cargo-leptos builds set it on their own — without the pin, plain
-  cargo builds (the shell with `-f ssr`) would emit wasm-bindgen's
+  cargo builds (the shell) would emit wasm-bindgen's
   `_bg.wasm` name and hydration would 404.
 - **Dev cargo-leptos builds instrument the markup for hot reload** in a
   way only their own watch process can hydrate against. Any server
@@ -119,7 +119,7 @@ default.
 ```bash
 cargo leptos watch           # browser dev: everything on :3000
 cargo tauri dev              # desktop: spawns the watch, window on :3000
-cargo tauri build -f ssr     # production bundle (merged in-process server)
+cargo tauri build            # production bundle (merged in-process server)
 cargo leptos build --release # site for plain-cargo servers
 ```
 

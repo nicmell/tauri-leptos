@@ -16,14 +16,15 @@ not part of the build).
   (feature `ssr`, the dev frontend-server run by `cargo leptos watch`).
 - `crates/app-core` — config/paths/logging/api_router; no Leptos/Tauri.
 - `crates/app-cli` — the standalone server (+ `config write|validate`).
-- `src-tauri` — shell; feature `ssr` = in-process production server.
+- `src-tauri` — shell; non-dev builds embed the in-process server
+  (`cfg(dev)` is its only branch).
 
 ## Commands
 
 ```bash
 cargo tauri dev                                 # desktop dev (spawns the watch)
 cargo leptos watch                              # browser dev: everything on :3000
-cargo tauri build -f ssr                        # production bundle
+cargo tauri build                               # production bundle
 cargo leptos build                              # dev site + frontend-server
 cargo leptos build --release                    # site for plain-cargo servers
 ./scripts/build-deb.sh                          # Pi deb (binary+site+unit)

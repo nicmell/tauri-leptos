@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Build macOS" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="cargo tauri build -f ssr" />
+    <option name="SCRIPT_TEXT" value="cargo tauri build" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />

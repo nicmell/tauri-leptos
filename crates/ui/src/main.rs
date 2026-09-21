@@ -3,7 +3,7 @@
 //! Rust logic restart this process — in-memory api state resets, same
 //! as a redeploy.
 
-#[cfg(feature = "ssr")]
+// The bin only builds with `required-features = ["ssr"]`.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::net::SocketAddr;
@@ -24,6 +24,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     srv.serve(app, server::shutdown_signal()).await?;
     Ok(())
 }
-
-#[cfg(not(feature = "ssr"))]
-fn main() {}

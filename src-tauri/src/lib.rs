@@ -45,9 +45,11 @@ mod server {
         }
     }
 
-    /// The window URL is fixed in tauri.conf.json (`http://127.0.0.1:3000`);
-    /// this serves it: SSR pages + API on one origin.
-    pub fn start(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    /// Start the in-process single-origin server (SSR + API) on an
+    /// ephemeral port and return the bound address — the window is
+    /// created on it afterwards, so no fixed port can ever conflict
+    /// with something else on the user's machine.
+    pub fn start(app: &tauri::App) -> Result<std::net::SocketAddr, Box<dyn std::error::Error>> {
         use std::net::SocketAddr;
 
         use tauri_leptos_core::server::Server;
@@ -68,18 +70,18 @@ mod server {
                 Arc::new(tauri_leptos_ui::server::DirAssets("target/site".into()))
             };
 
-        let listen = SocketAddr::from(([127, 0, 0, 1], 3000));
-        let options = tauri_leptos_ui::server::leptos_options(listen);
+        let server = Server::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
+        let addr = server.local_addr()?;
+        let options = tauri_leptos_ui::server::leptos_options(addr);
         let router = tauri_leptos_ui::server::router(options, assets);
-        let server = Server::bind(listen)?;
-        tracing::info!(%listen, "in-process server");
+        tracing::info!(%addr, "in-process server");
         tauri::async_runtime::spawn(async move {
             // No shutdown signal: the server lives as long as the process.
             if let Err(e) = server.serve(router, std::future::pending()).await {
                 tracing::error!("http server exited: {e}");
             }
         });
-        Ok(())
+        Ok(addr)
     }
 }
 
@@ -92,16 +94,26 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
+            // The window is created here, not in the config: with the
+            // in-process server the URL is only known after the bind.
             #[cfg(any(feature = "ssr", all(target_os = "android", not(dev))))]
-            server::start(app)?;
+            let url = format!("http://{}", server::start(app)?);
             #[cfg(not(any(feature = "ssr", all(target_os = "android", not(dev)))))]
-            {
-                let _ = app;
+            let url = {
                 tracing::info!(
                     "no in-process server; window attaches to cargo leptos watch \
                      (android dev: via adb reverse)"
                 );
-            }
+                "http://127.0.0.1:3000".to_owned()
+            };
+            tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::External(url.parse()?),
+            )
+            .title("tauri-leptos")
+            .inner_size(800.0, 600.0)
+            .build()?;
             Ok(())
         })
         .run(tauri::generate_context!())

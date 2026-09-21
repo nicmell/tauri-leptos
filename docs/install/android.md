@@ -15,8 +15,8 @@ rustup target add aarch64-linux-android armv7-linux-androideabi \
 
 In production builds the Tauri lib starts the merged single-origin
 server in-process (the `ssr` code path is unconditional on Android
-outside dev) and the window loads `http://127.0.0.1:3000` like
-everywhere else. Assets are served
+outside dev) on an ephemeral local port; the window is created on it
+at runtime, like on desktop. Assets are served
 **straight from the APK per request**: the `SiteAssets` implementation
 opens `resource_dir()/site/<path>` through the fs plugin's Rust API,
 which turns APK assets into real file descriptors (compressed assets
@@ -70,6 +70,14 @@ cargo tauri android build                        # release (needs signing)
 The shared `beforeBuildCommand` builds the **release** site before
 compiling — dev cargo-leptos builds only hydrate against their own
 watch process.
+
+Two gotchas seen in practice: repeated debug installs fill the
+emulator's /data (`INSTALL_FAILED_INSUFFICIENT_STORAGE` — uninstall
+first), and after an `android dev` run Gradle may consider the APK
+up-to-date and keep packaging the dev-variant native lib (it does not
+notice content changes behind the jniLibs symlink) — if a fresh build
+still logs "no in-process server", wipe
+`src-tauri/gen/android/app/build` and rebuild.
 
 Logs (server startup, asset serving, panics) go to logcat:
 

@@ -44,16 +44,18 @@ Dev notes:
 - **Server functions stay stateless by convention**; state lives behind
   `/api` and `/ws` in `core::server::api_router`.
 
-## Prod: the same router, in-process
+## Prod: the same router, in-process, ephemeral port
 
-`cargo tauri build -f ssr`: the shell starts the merged router
-in-process on `127.0.0.1:3000` and the window — a plain config window
-with a static `url` — loads it. The site comes from the bundled
-resources (`bundle.resources` → `resource_dir()/site`), with the
-workspace `target/site` as fallback for unbundled runs.
+`cargo tauri build -f ssr`: the shell binds the merged router
+in-process on `127.0.0.1:0` and creates the window at runtime
+(`WebviewWindowBuilder` in setup) on the real bound address — no fixed
+port can ever conflict with something else on the user's machine. The
+site comes from the bundled resources (`bundle.resources` →
+`resource_dir()/site`), with the workspace `target/site` as fallback
+for unbundled runs.
 
-The frontend origin (`127.0.0.1:3000`) is fixed by design and never
-configurable.
+The fixed `127.0.0.1:3000` remains only where an anchor is needed:
+the dev watch (devUrl, adb reverse) and the cli default.
 
 ## Unified asset serving (SiteAssets)
 

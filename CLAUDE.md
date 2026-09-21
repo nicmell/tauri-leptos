@@ -12,8 +12,10 @@ not part of the build).
   `[[workspace.metadata.leptos]]` block (bin-package = lib-package =
   tauri-leptos-ui). `.cargo/config.toml` pins `LEPTOS_OUTPUT_NAME`
   (asset names at compile time — plain cargo builds need it too).
-- `crates/ui` — Leptos app: lib (feature `hydrate`, wasm client) + bin
-  (feature `ssr`, the watch server run by `cargo leptos watch`, :3001).
+- `crates/ui` — Leptos frontend, pure library: lib (feature
+  `hydrate`, wasm client) + server module (feature `ssr`). The watch
+  server IS the cli (`bin-package`), on :3001 via the committed
+  `appdir/config/config.toml`.
 - `crates/app-core` — config/paths/logging/api_router; no Leptos/Tauri.
 - `crates/app-cli` — the standalone server (+ `config write|validate`).
 - `src-tauri` — shell; non-dev builds embed the in-process server
@@ -25,7 +27,7 @@ not part of the build).
 cargo tauri dev                                 # dev (watch spawned; browser = logged ephemeral URL)
 cargo tauri dev -- --no-default-features        # same, skips the shell's unused leptos build
 cargo tauri build                               # production bundle
-cargo leptos build                              # dev site + frontend-server
+cargo leptos build                              # dev site + watch (cli) binary
 cargo leptos build --release                    # site for plain-cargo servers
 ./scripts/build-deb.sh                          # Pi deb (binary+site+unit)
 cargo check --workspace

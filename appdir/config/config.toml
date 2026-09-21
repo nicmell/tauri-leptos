@@ -1,0 +1,4 @@
+# Dev config for the watch server (cargo leptos watch runs the cli with
+# TAURI_LEPTOS_APP_DIR=appdir). 3001 must match dev.upstream and the
+# tauri devUrl.
+listen = "127.0.0.1:3001"

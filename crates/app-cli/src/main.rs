@@ -30,8 +30,10 @@ struct Cli {
                 (overrides platform paths; env: TAURI_LEPTOS_APP_DIR)"
     )]
     app_dir: Option<PathBuf>,
+    /// Defaults to `serve` — `cargo leptos watch` runs this binary
+    /// with no arguments.
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -100,7 +102,12 @@ fn site_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
 async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    match cli.command {
+    let command = cli.command.unwrap_or(Command::Serve {
+        host: None,
+        port: None,
+        log_to_file: false,
+    });
+    match command {
         Command::Serve {
             host,
             port,

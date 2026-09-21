@@ -8,10 +8,9 @@ dev/build flow drives everything.
 ## Crate map
 
 ```
-crates/ui        Leptos app. lib (feature hydrate): the wasm client.
-                 bin  (feature ssr): the watch server run by
-                 `cargo leptos watch` (:3001, internal). server.rs:
-                 leptos_options, leptos_router(options, assets), router().
+crates/ui        Leptos frontend, a pure library: lib (feature
+                 hydrate) is the wasm client; server.rs (feature ssr)
+                 provides leptos_options, leptos_router, router().
 crates/app-core  config + paths + logging + the API router (axum:
                  /api/hello, /api/counter, /ws), bind/serve/shutdown,
                  and the asset backends (assets::Assets).
@@ -29,7 +28,8 @@ a cli without it is a pure api server). Dev vs release in the shell
 is `cfg(dev)`, emitted by tauri-build — no dev feature anywhere:
 
 ```
-dev      cargo leptos watch ──► watch server :3001 (SSR, hot reload, internal)
+dev      cargo leptos watch ──► runs the cli (site build) on :3001
+                                (appdir config; SSR + api, hot reload)
          cargo tauri dev    ──► shell: api in-process + reverse proxy to :3001
                                 window on the ephemeral origin (a plain
                                 http server — open it in a browser too)

@@ -70,7 +70,7 @@ strip = true
 [[workspace.metadata.leptos]]
 name = "tauri-leptos"
 bin-package = "tauri-leptos-cli"
-bin-features = ["site"]
+bin-features = []
 lib-package = "tauri-leptos-ui"
 lib-features = ["hydrate"]
 site-root = "target/site"

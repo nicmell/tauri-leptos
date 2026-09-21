@@ -1,13 +1,10 @@
 //! The app server as a plain unix daemon (systemd-friendly: stderr
-//! logging, *_DIRECTORY env vars honored by the paths module). A thin
-//! wrapper around the single-origin router; what it serves depends on
-//! the build:
-//!
-//! - `site` (default): embedded SSR frontend + api.
-//! - without it: api only (a remote api server for frontends
-//!   elsewhere). Dev happens in the tauri shell (`cargo tauri dev`),
-//!   whose ephemeral origin is a plain http server — open it in a
-//!   browser for browser work.
+//! logging, *_DIRECTORY env vars honored by the paths module): the
+//! single-origin router (SSR frontend + api), a thin wrapper around
+//! `core::app`. A remote api server is just this with `cors_origins`
+//! set — the site it also serves is harmless. Dev happens in the tauri
+//! shell (`cargo tauri dev`), whose ephemeral origin is a plain http
+//! server — open it in a browser for browser work.
 
 use std::error::Error;
 use std::net::{IpAddr, SocketAddr};
@@ -72,32 +69,6 @@ enum ConfigAction {
     },
 }
 
-/// Full build: embedded SSR frontend + api. The site must be a release
-/// build (`cargo leptos build --release`). Non-`site` builds get their
-/// router from [`Ctx::router`] (core owns that branching).
-#[cfg(feature = "site")]
-fn site_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
-    // Relative site_root resolves against the config dir; absent =
-    // the cargo-leptos output (dev runs from the workspace).
-    let site_root = ctx
-        .config
-        .site_root_resolved(&ctx.paths.app_config_dir, "target/site");
-    if !site_root.join("pkg").exists() {
-        tracing::warn!(
-            site_root = %site_root.display(),
-            "site root looks empty - run `cargo leptos build --release` \
-             and install/point `site_root` in the config at it"
-        );
-    }
-    tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
-    let options = tauri_leptos_ui::server::leptos_options(listen);
-    tauri_leptos_ui::server::router(
-        options,
-        tauri_leptos_core::assets::StaticAssets::from_site_root(site_root),
-        &ctx.config,
-    )
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let cli = Cli::parse();
@@ -122,10 +93,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let log_to_file = log_to_file || ctx.config.log_to_file;
             let _log_guard = logging::init(log_to_file.then_some(ctx.paths.app_log_dir.as_path()));
 
-            let app = tauri_leptos_core::app::app(ctx);
-            #[cfg(feature = "site")]
-            let app = app.with_router(|ctx, addr| Ok(site_router(ctx, addr)));
-            app.serve(listen)?.await?;
+            tauri_leptos_core::app::app(ctx).serve(listen)?.await?;
         }
         Command::Config { action } => {
             let paths =

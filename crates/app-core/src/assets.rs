@@ -10,7 +10,7 @@ use axum::Router;
 /// A way to serve the site bundle. `on_miss` handles requests that are
 /// not assets (typically: render the SSR shell so the client router
 /// can take over).
-pub trait Assets {
+pub(crate) trait Assets {
     fn into_router(self, on_miss: Router) -> Router;
 }
 
@@ -24,7 +24,7 @@ pub trait Assets {
 ///   the desktop bundle (real files) and the Android APK (assets as
 ///   file descriptors), the only backend that can serve straight from
 ///   an APK.
-pub struct StaticAssets(Backend);
+pub(crate) struct StaticAssets(Backend);
 
 enum Backend {
     Dir(PathBuf),
@@ -33,12 +33,15 @@ enum Backend {
 }
 
 impl StaticAssets {
-    pub fn from_site_root(dir: impl Into<PathBuf>) -> Self {
+    pub(crate) fn from_site_root(dir: impl Into<PathBuf>) -> Self {
         Self(Backend::Dir(dir.into()))
     }
 
     #[cfg(feature = "tauri")]
-    pub fn from_tauri_fs<R: tauri::Runtime>(app: tauri::AppHandle<R>, base: PathBuf) -> Self {
+    pub(crate) fn from_tauri_fs<R: tauri::Runtime>(
+        app: tauri::AppHandle<R>,
+        base: PathBuf,
+    ) -> Self {
         Self(Backend::TauriFs(tauri_fs::opener(app, base)))
     }
 }
@@ -49,6 +52,8 @@ impl Assets for StaticAssets {
             Backend::Dir(dir) => {
                 let serve = tower_http::services::ServeDir::new(dir)
                     .append_index_html_on_directories(false)
+                    // Server-fn POSTs must reach the pages fallback.
+                    .call_fallback_on_method_not_allowed(true)
                     .fallback(on_miss);
                 Router::new().fallback_service(serve)
             }
@@ -58,12 +63,14 @@ impl Assets for StaticAssets {
     }
 }
 
-/// Dev backend: reverse-proxies every non-api request to the
-/// `cargo leptos watch` server, which renders the (hot-reload
-/// instrumented) pages itself — `on_miss` never applies. Web sockets
-/// pass through untouched.
-pub struct ProxyAssets(pub String);
+/// Dev backend (the tauri shell's dev runs): reverse-proxies every
+/// non-api request to the `cargo leptos watch` server, which renders
+/// the (hot-reload instrumented) pages itself — `on_miss` never
+/// applies. Web sockets pass through untouched.
+#[cfg(feature = "tauri")]
+pub(crate) struct ProxyAssets(pub(crate) String);
 
+#[cfg(feature = "tauri")]
 impl Assets for ProxyAssets {
     fn into_router(self, _on_miss: Router) -> Router {
         axum_reverse_proxy::ReverseProxy::new("/", &self.0).into()
@@ -103,9 +110,16 @@ mod tauri_fs {
             }
             let mut open_options = tauri_plugin_fs::OpenOptions::new();
             open_options.read(true);
-            app.fs()
+            let file = app
+                .fs()
                 .open(base.join(path), open_options)
-                .map_err(io::Error::other)
+                .map_err(io::Error::other)?;
+            // Only regular files are assets — opening the base dir
+            // itself (e.g. for "/") must fall through to the pages.
+            if !file.metadata().is_ok_and(|m| m.is_file()) {
+                return Err(io::Error::other("not a file"));
+            }
+            Ok(file)
         })
     }
 
@@ -126,7 +140,17 @@ mod tauri_fs {
             async move {
                 use tower::util::ServiceExt;
                 let rel = req.uri().path().trim_start_matches('/').to_owned();
-                match opener(&rel) {
+                // Only GET/HEAD can be assets; everything else goes to
+                // the pages fallback (server-fn POSTs).
+                let is_read = matches!(
+                    *req.method(),
+                    axum::http::Method::GET | axum::http::Method::HEAD
+                );
+                match if is_read {
+                    opener(&rel)
+                } else {
+                    Err(io::Error::other("not an asset"))
+                } {
                     Ok(file) => serve_file(&rel, file),
                     Err(_) => on_miss.oneshot(req).await.unwrap_or_else(|e| match e {}),
                 }

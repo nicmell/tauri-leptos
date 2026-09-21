@@ -8,12 +8,15 @@ dev/build flow drives everything.
 ## Crate map
 
 ```
-crates/ui        Leptos frontend, a pure library: lib (feature
-                 hydrate) is the wasm client; server.rs (feature ssr)
-                 provides leptos_options, leptos_router, router().
-crates/app-core  config + paths + logging + the API router (axum:
-                 /api/hello, /api/counter, /ws), bind/serve/shutdown,
-                 and the asset backends (assets::Assets).
+crates/ui        Leptos frontend, a pure library with no core
+                 dependency: lib (feature hydrate) is the wasm client;
+                 server.rs (feature ssr) is just router(addr, api_base)
+                 — SSR routes + server fns, 404 on unknown paths.
+crates/app-core  everything else: config + paths + logging + the API
+                 router (/api/hello, /api/counter, /ws), the private
+                 asset backends, and the ONE router — Ctx::router,
+                 inferred from the Host fixed at bootstrap (core
+                 depends on ui).
 crates/app-cli   tauri-leptos-cli: thin wrapper around the single-origin
                  router; build features pick what it serves.
 src-tauri        Tauri shell: in-process server on an ephemeral port,
@@ -22,10 +25,12 @@ src-tauri        Tauri shell: in-process server on an ephemeral port,
 
 ## One origin everywhere
 
-Every mode serves a single origin. The only cargo feature is the
-cli's and shell's `site` (default: the embedded SSR frontend + api;
-a cli without it is a pure api server). Dev vs release in the shell
-is `cfg(dev)`, emitted by tauri-build — no dev feature anywhere:
+Every mode serves a single origin, and no app crate has cargo
+features: core depends on ui and owns the ONE router — `Ctx::router`,
+inferred from the `Host` fixed at bootstrap (`resolve` = standalone,
+`from_tauri(app, cfg!(dev))` = shell; the mode is runtime data, never
+a compile branch in an entrypoint). The cli is always the full server
+(a remote api server is the same binary with `cors_origins` set):
 
 ```
 dev      cargo leptos watch ──► runs the cli (site build) on :3001
@@ -47,8 +52,7 @@ Dev notes:
 - `view!`/CSS edits hot-patch in place; edits to Rust logic rebuild
   only the watch server.
 - `cargo tauri dev` spawns the watch (`beforeDevCommand`) and proxies
-  to it. `-- --no-default-features` is the optional fast path: it
-  skips the unused leptos build of the shell.
+  to it.
 - **Server functions stay stateless by convention**; state lives behind
   `/api` and `/ws` in `core::server::api_router`.
 
@@ -76,7 +80,7 @@ shell's origin is ephemeral, so a device pointing at a remote api
 typically needs `"*"` (an explicit, documented choice). WebSockets
 are not subject to CORS. Example: the android app with the embedded
 frontend and `api_base = "http://<pi>:3000"`, the Pi running an
-api-only build (`--no-default-features`) with matching
+full server with matching
 `cors_origins`.
 
 ## Asset backends (core::assets::Assets)
@@ -138,10 +142,9 @@ first run seeds the defaults, an invalid config refuses to start) and
 runs through `core::app`:
 
 ```rust
-app(ctx)                      // default router: api-only
-    .with_router(factory)     // site (leaves) or dev proxy (shell cfg(dev))
-    .serve(listen)?           // binds now — port 0 = ephemeral
-    .await                    // or hand the Serving to a runtime spawn
+app(ctx)                      // the router is host-inferred: ctx.router(addr)
+    .serve(listen)?           // binds now (port 0 = ephemeral); await it
+    .await                    //   or hand the Serving to a runtime spawn
 ```
 
 The factory receives the bound address (the site router needs it, and
@@ -170,7 +173,6 @@ default.
 ```bash
 cargo tauri dev              # spawns the watch; window + browser on the
                              # ephemeral origin (logged at startup)
-cargo tauri dev -- --no-default-features   # same, skipping the unused leptos build
 cargo tauri build            # production bundle (embedded frontend)
 cargo leptos build --release # site for plain-cargo servers
 ```
@@ -181,8 +183,8 @@ cargo leptos build --release # site for plain-cargo servers
 standalone: site and bind from the config — the deb ships
 `/etc/tauri-leptos/config.toml` (a conffile: apt keeps local edits)
 with `listen = "0.0.0.0:3000"` and the site path, and the unit is a
-bare `serve`. Build without default features
-for an api-only server (remote frontends). Packaging:
+bare `serve`. A remote api server is the same
+full server with `cors_origins` set. Packaging:
 `scripts/build-deb.sh` → deb with binary+site+system unit
 (enable/start on install). See
 [install/raspberry-pi.md](install/raspberry-pi.md).

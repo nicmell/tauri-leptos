@@ -1,19 +1,41 @@
-//! The shared bootstrap: resolved paths + loaded config, and the
-//! router for non-`site` builds. One strict path everywhere — a
-//! missing config is seeded with defaults on first run
-//! ([`AppConfig::load`]), an invalid one refuses to start.
+//! The shared bootstrap: resolved paths, loaded config and the host —
+//! everything [`Ctx::router`] needs to build the one router. One
+//! strict path everywhere: a missing config is seeded with defaults on
+//! first run ([`AppConfig::load`]), an invalid one refuses to start.
 
 use std::fmt;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
+#[cfg(feature = "tauri")]
+use crate::assets::ProxyAssets;
+use crate::assets::{Assets, StaticAssets};
 use crate::config::{AppConfig, ConfigError};
 use crate::paths::{AppPaths, PathsError, app_dir_from_env};
 
-/// Resolved paths + loaded config: what every entrypoint starts from.
+pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Where the app runs — the only thing that varies between the
+/// standalone server and the tauri shell, fixed at bootstrap and
+/// consumed by [`Ctx::router`] at runtime (never a compile branch in
+/// the entrypoints).
+#[derive(Debug, Clone)]
+enum Host {
+    Standalone,
+    #[cfg(feature = "tauri")]
+    Tauri {
+        app: tauri::AppHandle,
+        dev: bool,
+    },
+}
+
+/// Resolved paths + loaded config + host: what every entrypoint
+/// starts from.
 #[derive(Debug, Clone)]
 pub struct Ctx {
     pub paths: AppPaths,
     pub config: AppConfig,
+    host: Host,
 }
 
 #[derive(Debug)]
@@ -45,27 +67,91 @@ impl Ctx {
         let paths =
             AppPaths::resolve_standalone(app_dir.as_deref()).map_err(BootstrapError::Paths)?;
         let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
-        Ok(Self { paths, config })
+        Ok(Self {
+            paths,
+            config,
+            host: Host::Standalone,
+        })
     }
 
-    /// Bootstrap inside a Tauri app, from the real path API. First
-    /// launch seeds the default config; an invalid one is a hard
-    /// error — the app must not start on a broken config.
+    /// Bootstrap inside a Tauri app, from the real path API. `dev` is
+    /// the shell's `cfg!(dev)`. First launch seeds the default config;
+    /// an invalid one is a hard error — the app must not start on a
+    /// broken config.
     #[cfg(feature = "tauri")]
-    pub fn from_tauri<R: tauri::Runtime>(
-        app: &tauri::AppHandle<R>,
-    ) -> Result<Self, BootstrapError> {
-        let paths = AppPaths::from_tauri(app).map_err(BootstrapError::Tauri)?;
+    pub fn from_tauri(app: &tauri::App, dev: bool) -> Result<Self, BootstrapError> {
+        let handle = app.handle().clone();
+        let paths = AppPaths::from_tauri(&handle).map_err(BootstrapError::Tauri)?;
         let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
-        Ok(Self { paths, config })
+        Ok(Self {
+            paths,
+            config,
+            host: Host::Tauri { app: handle, dev },
+        })
     }
 
-    /// The router for non-`site` builds: the api-only server. `site`
-    /// builds construct the leptos router themselves (core cannot
-    /// depend on the ui crate); the tauri dev shell picks
-    /// [`crate::server::dev_router`] under `cfg(dev)`.
-    pub fn router(&self) -> axum::Router {
-        crate::server::api_only_router(&self.config)
+    /// The one router, host-inferred: the SSR site behind the matching
+    /// asset backend (std fs standalone, tauri fs in the shell), or —
+    /// in the shell's dev runs — the api with everything else
+    /// reverse-proxied from the watch server.
+    pub fn router(&self, addr: SocketAddr) -> Result<axum::Router, BoxError> {
+        match &self.host {
+            Host::Standalone => {
+                // Relative site_root resolves against the config dir;
+                // absent = the cargo-leptos output (dev workspace runs).
+                let site_root = self
+                    .config
+                    .site_root_resolved(&self.paths.app_config_dir, "target/site");
+                if !site_root.join("pkg").exists() {
+                    tracing::warn!(
+                        site_root = %site_root.display(),
+                        "site root looks empty - run `cargo leptos build --release` \
+                         and install/point `site_root` in the config at it"
+                    );
+                }
+                tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
+                Ok(self.site(addr, StaticAssets::from_site_root(site_root)))
+            }
+            #[cfg(feature = "tauri")]
+            Host::Tauri { dev: true, .. } => {
+                tracing::info!(
+                    upstream = %self.config.dev.upstream,
+                    "dev server (api + proxy to the watch)"
+                );
+                Ok(self.compose(
+                    ProxyAssets(self.config.dev.upstream.clone()),
+                    axum::Router::new(),
+                ))
+            }
+            #[cfg(feature = "tauri")]
+            Host::Tauri { app, .. } => {
+                use tauri::Manager;
+                // Relative site_root resolves against resource_dir;
+                // absent = the bundled "site" map.
+                let resource_dir = app.path().resource_dir()?;
+                let resource_site = self
+                    .config
+                    .site_root_resolved(&resource_dir, resource_dir.join("site"));
+                tracing::info!(base = %resource_site.display(), "serving bundled resources");
+                Ok(self.site(
+                    addr,
+                    StaticAssets::from_tauri_fs(app.clone(), resource_site),
+                ))
+            }
+        }
+    }
+
+    fn site(&self, addr: SocketAddr, assets: impl Assets) -> axum::Router {
+        self.compose(
+            assets,
+            tauri_leptos_ui::server::router(addr, self.config.api_base.clone()),
+        )
+    }
+
+    fn compose(&self, assets: impl Assets, pages: axum::Router) -> axum::Router {
+        assets
+            .into_router(pages)
+            .merge(crate::server::api_router(&self.config.cors_origins))
     }
 }
 

@@ -1,19 +1,43 @@
-#![cfg(feature = "ssr")]
-
 use std::net::SocketAddr;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
-use tauri_leptos_core::assets::StaticAssets;
+use tauri_leptos_core::bootstrap::Ctx;
 use tauri_leptos_core::config::AppConfig;
+use tauri_leptos_core::paths::AppPaths;
 use tower::ServiceExt;
 
-fn options() -> leptos::prelude::LeptosOptions {
-    tauri_leptos_ui::server::leptos_options(SocketAddr::from(([127, 0, 0, 1], 0)))
+/// Build a standalone Ctx from a scratch app dir carrying `config`
+/// (the host is private: the public bootstrap is the only door).
+fn ctx(config: &AppConfig) -> Ctx {
+    let dir = std::env::temp_dir().join(format!(
+        "tl-site-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let paths = AppPaths::from_root(&dir);
+    config
+        .seed(
+            &paths
+                .app_config_dir
+                .join(tauri_leptos_core::config::CONFIG_FILE),
+        )
+        .expect("seed test config");
+    Ctx::resolve(Some(dir)).expect("bootstrap test ctx")
 }
 
-fn site_assets() -> StaticAssets {
-    StaticAssets::from_site_root("target/site")
+fn site_config(site_root: &str) -> AppConfig {
+    AppConfig {
+        site_root: Some(std::path::absolute(site_root).expect("absolute site root")),
+        ..AppConfig::default()
+    }
+}
+
+fn addr() -> SocketAddr {
+    SocketAddr::from(([127, 0, 0, 1], 0))
 }
 
 async fn get(app: axum::Router, uri: &str) -> (StatusCode, Option<String>, String) {
@@ -42,7 +66,9 @@ async fn get(app: axum::Router, uri: &str) -> (StatusCode, Option<String>, Strin
 
 #[tokio::test]
 async fn production_router_renders_and_merges_the_api() {
-    let app = tauri_leptos_ui::server::router(options(), site_assets(), &AppConfig::default());
+    let app = ctx(&site_config("target/site"))
+        .router(addr())
+        .expect("router");
 
     let (status, _, html) = get(app.clone(), "/").await;
     assert_eq!(status, StatusCode::OK);
@@ -67,11 +93,9 @@ async fn assets_are_served_with_their_mime_type() {
         eprintln!("skipping: target/site not built");
         return;
     }
-    let app = tauri_leptos_ui::server::router(
-        options(),
-        StaticAssets::from_site_root("../../target/site"),
-        &AppConfig::default(),
-    );
+    let app = ctx(&site_config("../../target/site"))
+        .router(addr())
+        .expect("router");
     let (status, content_type, body) = get(app, "/pkg/tauri-leptos.js").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(content_type.as_deref(), Some("text/javascript"));
@@ -79,19 +103,21 @@ async fn assets_are_served_with_their_mime_type() {
 }
 
 #[tokio::test]
-async fn unknown_paths_render_the_shell() {
-    let app = tauri_leptos_ui::server::router(options(), site_assets(), &AppConfig::default());
-    let (_, _, html) = get(app, "/no-such-page").await;
-    assert!(html.contains("not found"));
+async fn unknown_paths_are_a_plain_404() {
+    let app = ctx(&site_config("target/site"))
+        .router(addr())
+        .expect("router");
+    let (status, _, _) = get(app, "/no-such-page").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
 async fn configured_api_base_is_injected() {
     let config = AppConfig {
         api_base: Some("http://pi.local:3000".to_owned()),
-        ..AppConfig::default()
+        ..site_config("target/site")
     };
-    let app = tauri_leptos_ui::server::router(options(), site_assets(), &config);
+    let app = ctx(&config).router(addr()).expect("router");
     let (status, _, html) = get(app, "/").await;
     assert_eq!(status, StatusCode::OK);
     assert!(html.contains(r#"<meta name="api-base" content="http://pi.local:3000">"#));
@@ -102,7 +128,9 @@ async fn configured_api_base_is_injected() {
 #[tokio::test]
 async fn traversal_never_leaks_files() {
     for path in ["/..%2fCargo.toml", "/../Cargo.toml", "/%2e%2e/Cargo.toml"] {
-        let app = tauri_leptos_ui::server::router(options(), site_assets(), &AppConfig::default());
+        let app = ctx(&site_config("target/site"))
+            .router(addr())
+            .expect("router");
         let (_, _, body) = get(app, path).await;
         assert!(!body.contains("[package]"), "{path} leaked a file");
     }

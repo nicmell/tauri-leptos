@@ -1,7 +1,3 @@
-use std::sync::OnceLock;
-
-use tauri_leptos_core::logging::{self, LogGuard};
-
 /// The in-process single-origin server, always on an ephemeral port:
 /// the embedded SSR frontend (bundled resources), or — in dev runs —
 /// the api with pages/assets reverse-proxied from the `cargo leptos
@@ -18,9 +14,23 @@ mod server {
     pub fn start(
         app: &tauri::App,
     ) -> Result<std::net::SocketAddr, tauri_leptos_core::app::BoxError> {
+        use std::sync::OnceLock;
+
+        use tauri_leptos_core::logging::{self, LogGuard};
+
         // Strict: first launch seeds the default config, a broken one
         // keeps the app from starting.
         let ctx = Ctx::from_tauri(app, cfg!(dev))?;
+
+        // Logging starts here, once the config says whether to add the
+        // rolling file; keep the appender guard alive for the process.
+        static LOG_GUARD: OnceLock<LogGuard> = OnceLock::new();
+        let _ = LOG_GUARD.set(logging::init(
+            ctx.config
+                .log_to_file
+                .then(|| ctx.paths.app_log_dir.clone())
+                .as_deref(),
+        ));
         let serving = tauri_leptos_core::app::app(ctx)
             .serve(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))?;
         let addr = serving.addr();
@@ -35,10 +45,6 @@ mod server {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Keep the file-appender guard (if any) alive for the whole process.
-    static LOG_GUARD: OnceLock<LogGuard> = OnceLock::new();
-    let _ = LOG_GUARD.set(logging::init(None));
-
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {

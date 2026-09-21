@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let options = tauri_leptos_ui::server::leptos_options(listen);
     let app = tauri_leptos_ui::server::router(
         options,
-        std::sync::Arc::new(tauri_leptos_ui::server::DirAssets("target/site".into())),
+        tauri_leptos_core::assets::DirAssets("target/site".into()),
     );
 
     let srv = server::Server::bind(listen)?;

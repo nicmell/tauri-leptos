@@ -9,21 +9,25 @@ use tauri_leptos_core::logging::{self, LogGuard};
 mod server {
     use std::io;
     use std::path::PathBuf;
-    use std::sync::Arc;
 
+    use axum::Router;
+    use axum::body::Body;
+    use axum::extract::Request;
+    use axum::response::{IntoResponse, Response};
     use tauri::Manager;
-    use tauri_leptos_ui::server::SiteAssets;
+    use tauri_leptos_core::assets::Assets;
 
     /// Site assets from the Tauri resource store, one code path for the
     /// desktop bundle and the Android APK: the fs plugin's Rust API opens
     /// plain files on desktop and APK assets (via file descriptor) on
-    /// Android, always yielding a real `std::fs::File`.
+    /// Android, always yielding a real `std::fs::File`. The only backend
+    /// that can serve straight from an APK — `ServeDir` needs real paths.
     struct TauriAssets {
         app: tauri::AppHandle,
         base: PathBuf,
     }
 
-    impl SiteAssets for TauriAssets {
+    impl TauriAssets {
         fn open(&self, rel: &str) -> io::Result<std::fs::File> {
             use tauri_plugin_fs::FsExt;
             let path = std::path::Path::new(rel);
@@ -45,6 +49,36 @@ mod server {
         }
     }
 
+    fn serve_file(rel: &str, file: std::fs::File) -> Response {
+        let mime = mime_guess::from_path(rel).first_or_octet_stream();
+        let stream = tokio_util::io::ReaderStream::new(tokio::fs::File::from_std(file));
+        (
+            [(axum::http::header::CONTENT_TYPE, mime.as_ref())],
+            Body::from_stream(stream),
+        )
+            .into_response()
+    }
+
+    impl Assets for TauriAssets {
+        fn into_router(self, on_miss: Router) -> Router {
+            Router::new().fallback(move |req: Request| {
+                let assets = TauriAssets {
+                    app: self.app.clone(),
+                    base: self.base.clone(),
+                };
+                let on_miss = on_miss.clone();
+                async move {
+                    use tower::util::ServiceExt;
+                    let rel = req.uri().path().trim_start_matches('/').to_owned();
+                    match assets.open(&rel) {
+                        Ok(file) => serve_file(&rel, file),
+                        Err(_) => on_miss.oneshot(req).await.unwrap_or_else(|e| match e {}),
+                    }
+                }
+            })
+        }
+    }
+
     /// Start the in-process single-origin server (SSR + API) on an
     /// ephemeral port and return the bound address — the window is
     /// created on it afterwards, so no fixed port can ever conflict
@@ -56,10 +90,10 @@ mod server {
 
         let resource_site = app.path().resource_dir()?.join("site");
         tracing::info!(base = %resource_site.display(), "serving bundled resources");
-        let assets: Arc<dyn SiteAssets> = Arc::new(TauriAssets {
+        let assets = TauriAssets {
             app: app.handle().clone(),
             base: resource_site,
-        });
+        };
 
         let server = Server::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
         let addr = server.local_addr()?;

@@ -4563,11 +4563,16 @@ dependencies = [
 name = "tauri-leptos"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "mime_guess",
  "tauri",
  "tauri-build",
  "tauri-leptos-core",
  "tauri-leptos-ui",
  "tauri-plugin-fs",
+ "tokio",
+ "tokio-util",
+ "tower",
  "tracing",
 ]
 
@@ -4595,6 +4600,7 @@ dependencies = [
  "tokio",
  "toml 1.1.6+spec-1.1.0",
  "tower",
+ "tower-http",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -4612,11 +4618,9 @@ dependencies = [
  "leptos_axum",
  "leptos_meta",
  "leptos_router",
- "mime_guess",
  "serde",
  "tauri-leptos-core",
  "tokio",
- "tokio-util",
  "tower",
  "tracing",
  "wasm-bindgen",

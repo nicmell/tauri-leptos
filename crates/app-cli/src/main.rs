@@ -103,7 +103,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let options = tauri_leptos_ui::server::leptos_options(listen);
             let app = tauri_leptos_ui::server::router(
                 options,
-                std::sync::Arc::new(tauri_leptos_ui::server::DirAssets(site_root)),
+                tauri_leptos_core::assets::DirAssets(site_root),
             );
 
             let srv = server::Server::bind(listen)?;

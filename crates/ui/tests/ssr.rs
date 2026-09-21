@@ -1,19 +1,18 @@
 #![cfg(feature = "ssr")]
 
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
-use tauri_leptos_ui::server::{DirAssets, SiteAssets};
+use tauri_leptos_core::assets::DirAssets;
 use tower::ServiceExt;
 
 fn options() -> leptos::prelude::LeptosOptions {
     tauri_leptos_ui::server::leptos_options(SocketAddr::from(([127, 0, 0, 1], 0)))
 }
 
-fn site_assets() -> Arc<dyn SiteAssets> {
-    Arc::new(DirAssets("target/site".into()))
+fn site_assets() -> DirAssets {
+    DirAssets("target/site".into())
 }
 
 async fn get(app: axum::Router, uri: &str) -> (StatusCode, Option<String>, String) {
@@ -65,8 +64,7 @@ async fn assets_are_served_with_their_mime_type() {
         eprintln!("skipping: target/site not built");
         return;
     }
-    let app =
-        tauri_leptos_ui::server::router(options(), Arc::new(DirAssets("../../target/site".into())));
+    let app = tauri_leptos_ui::server::router(options(), DirAssets("../../target/site".into()));
     let (status, content_type, body) = get(app, "/pkg/tauri-leptos.js").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(content_type.as_deref(), Some("text/javascript"));
@@ -80,9 +78,13 @@ async fn unknown_paths_render_the_shell() {
     assert!(html.contains("not found"));
 }
 
-#[test]
-fn dir_assets_reject_traversal() {
-    let assets = DirAssets("target/site".into());
-    assert!(assets.open("../Cargo.toml").is_err());
-    assert!(assets.open("/etc/hosts").is_err());
+// ServeDir carries its own traversal guard; escaping the root must
+// fall through to the shell, never leak a file.
+#[tokio::test]
+async fn traversal_never_leaks_files() {
+    for path in ["/..%2fCargo.toml", "/../Cargo.toml", "/%2e%2e/Cargo.toml"] {
+        let app = tauri_leptos_ui::server::router(options(), site_assets());
+        let (_, _, body) = get(app, path).await;
+        assert!(!body.contains("[package]"), "{path} leaked a file");
+    }
 }

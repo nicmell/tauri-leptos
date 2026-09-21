@@ -31,6 +31,8 @@ maintainer-scripts = "debian/"
 assets = [
   ["target/release/tauri-leptos-cli", "usr/bin/", "755"],
   ["../../target/site/**/*", "usr/share/tauri-leptos/site/", "644"],
+  # Under /etc => conffile: apt keeps local edits on upgrade.
+  ["debian/config.toml", "etc/tauri-leptos/config.toml", "644"],
 ]
 
 # Empty table = defaults: enable+start on install, stop+disable on

@@ -1,0 +1,5 @@
+# tauri-leptos server configuration (installed to /etc/tauri-leptos/;
+# apt treats it as a conffile and never overwrites local edits).
+# Relative site_root paths resolve against this directory.
+listen = "0.0.0.0:3000"
+site_root = "/usr/share/tauri-leptos/site"

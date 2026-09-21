@@ -90,9 +90,9 @@ renders the SSR shell in full builds:
 
 | impl | used by | resolution |
 | --- | --- | --- |
-| `DirAssets(dir)` (core) | cli `site` builds, watch server, tests | `tower_http::ServeDir` (traversal guard, ETag, ranges) |
+| `StaticAssets::from_site_root(dir)` (core) | cli `site` builds, watch server, tests | `tower_http::ServeDir` (traversal guard, ETag, ranges) |
 | `ProxyAssets(url)` (core, feature `dev`) | cli/shell dev builds | reverse proxy to the watch (`axum-reverse-proxy`) |
-| `TauriAssets` (src-tauri) | desktop bundle AND Android, same code | `resource_dir()/site` via the fs plugin (desktop: real files; Android: APK assets as file descriptors) |
+| `StaticAssets::from_tauri_fs(app, base)` (core, feature `tauri`) | desktop bundle AND Android, same code | the resource store via the fs plugin (desktop: real files; Android: APK assets as file descriptors) |
 
 On Android there is no extraction: assets are opened from the APK per
 request (compressed assets are cache-copied by the plugin — correct;
@@ -119,7 +119,7 @@ attach to the watch, everything else embeds the server.
 | field | default | meaning |
 | --- | --- | --- |
 | `listen` | `127.0.0.1:3000` | server bind address |
-| `site_root` | platform default | frontend bundle dir (`site` builds) |
+| `site_root` | see below | frontend bundle dir (`site` builds) |
 | `api_base` | none (same origin) | origin the client sends api/ws to |
 | `cors_origins` | empty (no CORS) | origins allowed on `/api` (`"*"` = any) |
 | `log_to_file` | `false` | daily-rolling file in the app log dir |
@@ -129,6 +129,17 @@ The cli fails fast on an invalid file (systemd must see it); unknown
 fields are rejected. `serve --host`/`--port` override `listen`.
 `dev.upstream` must match `site-addr` in the leptos metadata and
 `devUrl` in tauri.conf.json — three places, kept aligned by hand.
+
+`site_root` convention: absolute paths as-is; relative paths resolve
+against the config file's directory (cli) or `resource_dir` (shell);
+absent = `target/site` (cli dev) / the bundled `site` map (shell).
+The deb ships `/etc/tauri-leptos/config.toml` with the explicit
+`/usr/share/tauri-leptos/site` path.
+
+Every entrypoint bootstraps through `config::Ctx` — `resolve`
+(strict, the cli), `resolve_lenient` (dev tools), `from_tauri` (the
+shell, feature `tauri`, real tauri path API with the `dirs` mirror as
+the standalone fallback).
 
 ## Paths
 
@@ -161,10 +172,10 @@ cargo leptos build --release # site for plain-cargo servers
 ## Standalone / Raspberry Pi
 
 `tauri-leptos-cli serve` (no flags) runs the single-origin server
-standalone: site from `site_root` in the config (Linux default
-`/usr/share/tauri-leptos/site` — the deb path; elsewhere
-`target/site`); bind from `--host`/`--port` (default `127.0.0.1:3000` —
-the Pi unit passes `--host 0.0.0.0`). Build without default features
+standalone: site and bind from the config — the deb ships
+`/etc/tauri-leptos/config.toml` (a conffile: apt keeps local edits)
+with `listen = "0.0.0.0:3000"` and the site path, and the unit is a
+bare `serve`. Build without default features
 for an api-only server (remote frontends). Packaging:
 `scripts/build-deb.sh` → deb with binary+site+system unit
 (enable/start on install). See

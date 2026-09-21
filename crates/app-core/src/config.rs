@@ -18,15 +18,39 @@ pub struct AppConfig {
     /// Address the server listens on (SSR + api + ws, one origin).
     /// `--host`/`--port` override it per invocation.
     pub listen: SocketAddr,
+    /// Frontend bundle directory for `site` builds. `None` = the
+    /// platform default (`AppPaths::default_site_root`).
+    pub site_root: Option<PathBuf>,
     /// Also write logs to a daily-rolling file in the app log dir.
     pub log_to_file: bool,
+    /// Dev-build settings (`--features dev`).
+    pub dev: DevConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct DevConfig {
+    /// The `cargo leptos watch` server the dev proxy forwards to. Must
+    /// match `site-addr` in the leptos metadata and `devUrl` in
+    /// tauri.conf.json.
+    pub upstream: String,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             listen: SocketAddr::from(([127, 0, 0, 1], 3000)),
+            site_root: None,
             log_to_file: false,
+            dev: DevConfig::default(),
+        }
+    }
+}
+
+impl Default for DevConfig {
+    fn default() -> Self {
+        Self {
+            upstream: "http://127.0.0.1:3001".to_owned(),
         }
     }
 }

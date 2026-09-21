@@ -39,26 +39,21 @@ overwrite the hand edits — review the git diff afterwards.
 
 ## Develop
 
-Android dev attaches to the host's dev server like desktop dev: no
-in-process server (`cfg(dev)` skips it), no release site build. The
-device reaches the host through `adb reverse` — 3000 (the watch's
-single-origin dev server), 3002 (leptos reload socket). With an
-emulator or device connected:
+Android dev works like desktop dev: the shell's dev build (no
+leptos) runs the api in-process on an ephemeral port and
+reverse-proxies pages/assets from the host's `cargo leptos watch`,
+reached through `adb reverse` — 3001 (watch), 3002 (leptos reload
+socket). With an emulator or device connected:
 
 ```bash
-./scripts/android-dev.sh                         # reverses + android dev
+./scripts/android-dev.sh    # reverses + android dev (dev feature set)
 ```
 
-One dev-only quirk: on mobile Tauri proxies the page through
-`http://tauri.localhost` whenever the window URL matches the devUrl —
-and that proxy drops POST bodies (`shouldInterceptRequest` has none),
-breaking server functions. The config sidesteps the proxy by offsetting
-the devUrl host (`http://localhost:3000` vs the window's fixed
-`http://127.0.0.1:3000`): the match fails, the webview loads the watch
-directly through the reverse — same origin, working server fns and
-live reload, exactly like desktop dev. Desktop ignores the offset (no
-proxy there, and the CLI's dev-server wait resolves `localhost` fine),
-so one `tauri.conf.json` covers both platforms — no android overlay.
+The window always loads the local in-process origin, so Tauri's
+mobile dev proxy (`http://tauri.localhost`, which drops POST bodies)
+never engages, and server-fn POSTs travel through our own reverse
+proxy instead. Live reload reaches the device because the reload
+socket resolves against `127.0.0.1` (reversed).
 
 ## Build
 

@@ -13,6 +13,7 @@ tracing-appender.workspace = true
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
+axum-reverse-proxy = { workspace = true, optional = true }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -20,6 +21,10 @@ toml.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 paranoid-android.workspace = true
+
+[features]
+# Dev proxy backend (assets::ProxyAssets) for builds without leptos.
+dev = ["dep:axum-reverse-proxy"]
 
 [lints]
 workspace = true

@@ -10,7 +10,7 @@ After=network.target scsynth.service
 [Service]
 User=nick
 Group=audio
-ExecStart=/usr/bin/tauri-leptos-cli serve --host 0.0.0.0 --port 3000 --site-root /usr/share/tauri-leptos/site
+ExecStart=/usr/bin/tauri-leptos-cli serve --host 0.0.0.0 --port 3000
 # systemd owns /etc/tauri-leptos, /var/lib/tauri-leptos, ... and exports
 # the matching *_DIRECTORY env vars the app's path resolution picks up.
 ConfigurationDirectory=tauri-leptos

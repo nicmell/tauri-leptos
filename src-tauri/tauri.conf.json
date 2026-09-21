@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "cd .. && cargo leptos watch",
     "beforeBuildCommand": "cd .. && cargo leptos build --release",
-    "devUrl": "http://localhost:3000"
+    "devUrl": "http://127.0.0.1:3001"
   },
   "app": {
     "withGlobalTauri": false,

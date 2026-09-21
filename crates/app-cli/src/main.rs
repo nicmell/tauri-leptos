@@ -16,7 +16,8 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use tauri_leptos_core::config::{AppConfig, CONFIG_FILE, Ctx};
+use tauri_leptos_core::bootstrap::Ctx;
+use tauri_leptos_core::config::{AppConfig, CONFIG_FILE};
 use tauri_leptos_core::paths::{AppPaths, app_dir_from_env};
 use tauri_leptos_core::{logging, server};
 
@@ -72,9 +73,10 @@ enum ConfigAction {
 }
 
 /// Full build: embedded SSR frontend + api. The site must be a release
-/// build (`cargo leptos build --release`).
+/// build (`cargo leptos build --release`). Non-`site` builds get their
+/// router from [`Ctx::router`] (core owns that branching).
 #[cfg(feature = "site")]
-fn app_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
+fn site_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
     // Relative site_root resolves against the config dir; absent =
     // the cargo-leptos output (dev runs from the workspace).
     let site_root = ctx
@@ -94,19 +96,6 @@ fn app_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
         tauri_leptos_core::assets::StaticAssets::from_site_root(site_root),
         &ctx.config,
     )
-}
-
-/// Dev build: api lives here (stable across frontend rebuilds), pages
-/// and assets come from the watch server through the reverse proxy.
-#[cfg(all(feature = "dev", not(feature = "site")))]
-fn app_router(ctx: &Ctx, _listen: SocketAddr) -> axum::Router {
-    server::dev_router(&ctx.config)
-}
-
-/// Api-only build: a remote api server for frontends running elsewhere.
-#[cfg(not(any(feature = "site", feature = "dev")))]
-fn app_router(ctx: &Ctx, _listen: SocketAddr) -> axum::Router {
-    server::api_only_router(&ctx.config)
 }
 
 #[tokio::main]
@@ -130,7 +119,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let _log_guard = logging::init(log_to_file.then_some(ctx.paths.app_log_dir.as_path()));
             ctx.paths.ensure_dirs()?;
 
-            let app = app_router(&ctx, listen);
+            #[cfg(feature = "site")]
+            let app = site_router(&ctx, listen);
+            #[cfg(not(feature = "site"))]
+            let app = ctx.router();
 
             let srv = server::Server::bind(listen)?;
             tracing::info!(addr = %srv.local_addr()?, "server up");

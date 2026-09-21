@@ -132,69 +132,6 @@ impl AppConfig {
     }
 }
 
-/// Resolved paths + loaded config: the shared bootstrap for every
-/// entrypoint.
-#[derive(Debug, Clone)]
-pub struct Ctx {
-    pub paths: AppPaths,
-    pub config: AppConfig,
-}
-
-#[derive(Debug)]
-pub enum BootstrapError {
-    Paths(crate::paths::PathsError),
-    Config(ConfigError),
-}
-
-impl fmt::Display for BootstrapError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Paths(e) => e.fmt(f),
-            Self::Config(e) => e.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for BootstrapError {}
-
-impl Ctx {
-    /// Strict bootstrap (the cli's serve mode): an invalid config is a
-    /// hard error — systemd must see the failure. `app_dir` = the CLI
-    /// flag; the app-dir env var is the fallback.
-    pub fn resolve(app_dir: Option<PathBuf>) -> Result<Self, BootstrapError> {
-        let app_dir = app_dir.or_else(crate::paths::app_dir_from_env);
-        let paths =
-            AppPaths::resolve_standalone(app_dir.as_deref()).map_err(BootstrapError::Paths)?;
-        let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
-        Ok(Self { paths, config })
-    }
-
-    /// Lenient bootstrap (dev tools): fall back to defaults instead of
-    /// refusing to start.
-    pub fn resolve_lenient(app_dir: Option<PathBuf>) -> Self {
-        let app_dir = app_dir.or_else(crate::paths::app_dir_from_env);
-        let paths = AppPaths::resolve_standalone(app_dir.as_deref())
-            .unwrap_or_else(|_| AppPaths::from_root("appdir"));
-        let config = AppConfig::load(&paths).unwrap_or_default();
-        Self { paths, config }
-    }
-
-    /// Lenient bootstrap inside a Tauri app, from the real path API.
-    #[cfg(feature = "tauri")]
-    pub fn from_tauri<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Self {
-        match AppPaths::from_tauri(app) {
-            Ok(paths) => {
-                let config = AppConfig::load(&paths).unwrap_or_default();
-                Self { paths, config }
-            }
-            Err(_) => Self {
-                paths: AppPaths::from_root("appdir"),
-                config: AppConfig::default(),
-            },
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,17 +173,6 @@ mod tests {
             config.site_root_resolved(base, "target/site"),
             PathBuf::from("/usr/share/app/site")
         );
-    }
-
-    #[test]
-    fn strict_bootstrap_rejects_invalid_config() {
-        let dir = std::env::temp_dir().join(format!("tl-boot-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let paths = AppPaths::from_root(&dir);
-        std::fs::create_dir_all(&paths.app_config_dir).expect("mkdir");
-        std::fs::write(paths.app_config_dir.join(CONFIG_FILE), "nonsense = true\n").expect("write");
-        assert!(Ctx::resolve(Some(dir.clone())).is_err());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

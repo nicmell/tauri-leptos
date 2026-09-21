@@ -8,13 +8,14 @@
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::net::SocketAddr;
 
-    use tauri_leptos_core::config::Ctx;
+    use tauri_leptos_core::bootstrap::Ctx;
     use tauri_leptos_core::{logging, server};
 
     let _log_guard = logging::init(None);
 
-    // Best effort: a dev tool falls back to defaults instead of refusing.
-    let api_base = Ctx::resolve_lenient(None).config.api_base;
+    // Strict like every entrypoint: first run seeds the defaults, a
+    // broken config refuses to start.
+    let api_base = Ctx::resolve(None)?.config.api_base;
     let listen = SocketAddr::from(([127, 0, 0, 1], 3001));
     let options = tauri_leptos_ui::server::leptos_options(listen);
     let app = tauri_leptos_ui::server::leptos_router(

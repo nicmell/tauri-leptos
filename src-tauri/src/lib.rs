@@ -16,8 +16,10 @@ use tauri_leptos_core::logging::{self, LogGuard};
 mod server {
 
     /// The embedded frontend: SSR + assets from the bundled resources.
+    /// The dev shell gets its router from [`Ctx::router`] instead
+    /// (core owns that branching).
     #[cfg(feature = "site")]
-    fn app_router(
+    fn site_router(
         app: &tauri::App,
         addr: std::net::SocketAddr,
         config: &tauri_leptos_core::config::AppConfig,
@@ -36,16 +38,6 @@ mod server {
         Ok(tauri_leptos_ui::server::router(options, assets, config))
     }
 
-    /// Dev shell: api in-process, pages/assets proxied from the watch.
-    #[cfg(feature = "dev")]
-    fn app_router(
-        _app: &tauri::App,
-        _addr: std::net::SocketAddr,
-        config: &tauri_leptos_core::config::AppConfig,
-    ) -> tauri::Result<axum::Router> {
-        Ok(tauri_leptos_core::server::dev_router(config))
-    }
-
     /// Start the in-process single-origin server on an ephemeral port
     /// and return the bound address — the window is created on it
     /// afterwards, so no fixed port can ever conflict with something
@@ -55,12 +47,16 @@ mod server {
 
         use tauri_leptos_core::server::Server;
 
-        // Best effort: the shell falls back to the default config.
-        let config = tauri_leptos_core::config::Ctx::from_tauri(app.handle()).config;
+        // Strict: first launch seeds the default config, a broken one
+        // keeps the app from starting.
+        let ctx = tauri_leptos_core::bootstrap::Ctx::from_tauri(app.handle())?;
 
         let server = Server::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
         let addr = server.local_addr()?;
-        let router = app_router(app, addr, &config)?;
+        #[cfg(feature = "site")]
+        let router = site_router(app, addr, &ctx.config)?;
+        #[cfg(not(feature = "site"))]
+        let router = ctx.router();
         tracing::info!(%addr, "in-process server");
         tauri::async_runtime::spawn(async move {
             // No shutdown signal: the server lives as long as the process.

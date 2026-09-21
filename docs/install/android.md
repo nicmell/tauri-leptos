@@ -13,10 +13,10 @@ rustup target add aarch64-linux-android armv7-linux-androideabi \
 
 ## How the app runs on Android
 
-In production builds the Tauri lib starts the merged single-origin
-server in-process (the `ssr` code path is unconditional on Android
-outside dev) and the window loads `http://127.0.0.1:3000` like
-everywhere else. Assets are served
+In non-dev builds the Tauri lib starts the merged single-origin
+server in-process on an ephemeral local port; the window is created on
+it at runtime, like on desktop (`cfg(dev)` is the shell's only
+compile-time branch). Assets are served
 **straight from the APK per request**: the `SiteAssets` implementation
 opens `resource_dir()/site/<path>` through the fs plugin's Rust API,
 which turns APK assets into real file descriptors (compressed assets
@@ -39,12 +39,11 @@ overwrite the hand edits — review the git diff afterwards.
 
 ## Develop
 
-Android dev attaches to the host's dev processes like desktop dev: no
+Android dev attaches to the host's dev server like desktop dev: no
 in-process server (`cfg(dev)` skips it), no release site build. The
-device reaches the host through `adb reverse` — 3000 (watch), 3001
-(api), 3002 (leptos reload socket). With an emulator or device
-connected and the api server running (`mprocs` or the cli
-`serve --headless`):
+device reaches the host through `adb reverse` — 3000 (the watch's
+single-origin dev server), 3002 (leptos reload socket). With an
+emulator or device connected:
 
 ```bash
 ./scripts/android-dev.sh                         # reverses + android dev
@@ -71,6 +70,14 @@ cargo tauri android build                        # release (needs signing)
 The shared `beforeBuildCommand` builds the **release** site before
 compiling — dev cargo-leptos builds only hydrate against their own
 watch process.
+
+Two gotchas seen in practice: repeated debug installs fill the
+emulator's /data (`INSTALL_FAILED_INSUFFICIENT_STORAGE` — uninstall
+first), and after an `android dev` run Gradle may consider the APK
+up-to-date and keep packaging the dev-variant native lib (it does not
+notice content changes behind the jniLibs symlink) — if a fresh build
+still logs "no in-process server", wipe
+`src-tauri/gen/android/app/build` and rebuild.
 
 Logs (server startup, asset serving, panics) go to logcat:
 

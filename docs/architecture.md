@@ -9,50 +9,53 @@ dev/build flow drives everything.
 
 ```
 crates/ui        Leptos app. lib (feature hydrate): the wasm client.
-                 bin  (feature ssr): the dev frontend-server run by
+                 bin  (feature ssr): the dev server run by
                  `cargo leptos watch`. server.rs: leptos_options,
-                 leptos_router(options, api_base), production router().
+                 leptos_router(options, assets), merged router().
 crates/app-core  config + paths + logging + the API router (axum:
                  /api/hello, /api/counter, /ws) and bind/serve/shutdown.
-crates/app-cli   tauri-leptos-cli: full single-origin server by default
-                 (SSR + api, the systemd deployment), --headless = api
-                 only (the dev split); plus `config write|validate`.
-src-tauri        Tauri shell. Feature ssr = in-process production server.
+crates/app-cli   tauri-leptos-cli: thin wrapper around the merged
+                 single-origin router (`--host`/`--port`/`--site-root`);
+                 plus `config write|validate`.
+src-tauri        Tauri shell. Non-dev builds embed the in-process server.
 ```
 
-## Dev: two processes, state stays alive
+## One router, one port — everywhere
+
+Every mode mounts the same merged router (`ui::server::router` =
+leptos routes + core API + `/ws`) on a single origin. The client always
+uses relative URLs: no CORS anywhere, no second port, no injected
+API address.
 
 ```
-cargo leptos watch ──► ui bin :3000  SSR + hydration (hot reload)
-                                     injects <meta name="api-base"
-                                     content="http://127.0.0.1:3001">
-tauri-leptos-cli --headless ──► api :3001  axum only, holds state, CORS
-                                     the local dev origins
+dev      cargo leptos watch ──► ui bin :3000   (hot reload)
+cli      tauri-leptos-cli serve ──► --host/--port (default 127.0.0.1:3000)
+tauri    in-process server, window loads it
 ```
 
-- UI edits rebuild only the frontend-server; the API process — and its
-  in-memory state — survives (`/api/counter` proves it).
-- `mprocs` starts the pair for browser work; `cargo tauri dev` spawns
-  its own watch (`beforeDevCommand`) and opens the window on it.
-- The client reads the `api-base` meta and sends fetch/WS there,
-  cross-origin. CORS lives only on the cli and only for the dev
-  origins (`http://127.0.0.1:3000`, `tauri://localhost`,
-  `http://tauri.localhost`).
-- **Server functions run in the frontend-server process in dev.** Keep
-  them stateless; real state belongs behind `/api` and `/ws`.
+Dev notes:
 
-## Prod: one server, one origin
+- `view!`/CSS edits hot-patch without restarting; edits to Rust logic
+  rebuild and **restart the dev server process**, so in-memory api
+  state resets — the same thing a redeploy does. Real state belongs in
+  an external store, not in process memory.
+- `cargo tauri dev` spawns its own watch (`beforeDevCommand`) and opens
+  the window on it.
+- **Server functions stay stateless by convention**; state lives behind
+  `/api` and `/ws` in `core::server::api_router`.
 
-`cargo tauri build -f ssr`: the shell starts the merged router
-(`ui::server::router` = leptos routes + core API) in-process on
-`127.0.0.1:3000` and the window — a plain config window with a static
-`url` — loads it. The `api-base` meta is empty, so the client uses
-relative URLs: no CORS, no second port. The site comes from the
-bundled resources (`bundle.resources` → `resource_dir()/site`), with
-the workspace `target/site` as fallback for unbundled runs.
+## Prod: the same router, in-process, ephemeral port
 
-The frontend origin (`127.0.0.1:3000`) is fixed by design and never
-configurable.
+`cargo tauri build`: the shell binds the merged router
+in-process on `127.0.0.1:0` and creates the window at runtime
+(`WebviewWindowBuilder` in setup) on the real bound address — no fixed
+port can ever conflict with something else on the user's machine. The
+site comes from the bundled resources (`bundle.resources` →
+`resource_dir()/site`), with the workspace `target/site` as fallback
+for unbundled runs.
+
+The fixed `127.0.0.1:3000` remains only where an anchor is needed:
+the dev watch (devUrl, adb reverse) and the cli default.
 
 ## Unified asset serving (SiteAssets)
 
@@ -67,15 +70,15 @@ the router's fallback (stream + mime on hit, SSR shell on miss):
 
 On Android there is no extraction: assets are opened from the APK per
 request (compressed assets are cache-copied by the plugin — correct;
-`noCompress` would yield raw-APK fds). The server runs unconditionally
-there (`any(feature ssr, target_os android)`).
+`noCompress` would yield raw-APK fds). The shell's only compile-time branch is `cfg(dev)`: dev builds
+attach to the watch, everything else embeds the server.
 
 ## Asset naming and site builds
 
 - `.cargo/config.toml` pins `LEPTOS_OUTPUT_NAME`: leptos derives asset
   URLs (e.g. `pkg/tauri-leptos.wasm`) from it at compile time, and only
   cargo-leptos builds set it on their own — without the pin, plain
-  cargo builds (the shell with `-f ssr`) would emit wasm-bindgen's
+  cargo builds (the shell) would emit wasm-bindgen's
   `_bg.wasm` name and hydration would 404.
 - **Dev cargo-leptos builds instrument the markup for hot reload** in a
   way only their own watch process can hydrate against. Any server
@@ -89,11 +92,11 @@ there (`any(feature ssr, target_os android)`).
 
 | field | default | meaning |
 | --- | --- | --- |
-| `api_addr` | `127.0.0.1:3001` | API/WS server address |
+| `listen` | `127.0.0.1:3000` | server bind address (SSR + api + ws) |
 | `log_to_file` | `false` | daily-rolling file in the app log dir |
 
 The cli fails fast on an invalid file (systemd must see it); unknown
-fields are rejected. `serve --listen` overrides `api_addr`.
+fields are rejected. `serve --host`/`--port` override `listen`.
 
 ## Paths
 
@@ -114,20 +117,21 @@ default.
 ## Dev workflows
 
 ```bash
-mprocs                       # watch (:3000) + api (:3001)
+cargo leptos watch           # browser dev: everything on :3000
 cargo tauri dev              # desktop: spawns the watch, window on :3000
-cargo tauri build -f ssr     # production bundle (merged in-process server)
+cargo tauri build            # production bundle (merged in-process server)
 cargo leptos build --release # site for plain-cargo servers
 ```
 
-## Headless / Raspberry Pi
+## Standalone / Raspberry Pi
 
 `tauri-leptos-cli serve` (no flags) runs the same merged single-origin
 server standalone: site from `--site-root` (deb: `/usr/share/tauri-leptos/site`;
 manual Linux default `/usr/local/share/tauri-leptos/site`; elsewhere
-`target/site`). `--headless` keeps the api-only dev behavior. Packaging:
-`scripts/build-deb.sh` → deb with binary+site+system unit (enable/start
-on install). See [install/raspberry-pi.md](install/raspberry-pi.md).
+`target/site`); bind from `--host`/`--port` (default `127.0.0.1:3000` —
+the Pi unit passes `--host 0.0.0.0`). Packaging: `scripts/build-deb.sh`
+→ deb with binary+site+system unit (enable/start on install). See
+[install/raspberry-pi.md](install/raspberry-pi.md).
 
 ## Out of scope for now
 

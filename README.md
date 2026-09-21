@@ -10,8 +10,8 @@ Full picture: [docs/architecture.md](docs/architecture.md).
 ```
 crates/ui        Leptos app: wasm client (hydrate) + dev frontend-server (ssr bin)
 crates/app-core  config + paths + logging + API router (/api, /ws)
-crates/app-cli   tauri-leptos-cli: the API server + config subcommands
-src-tauri        Tauri shell (feature ssr = in-process production server)
+crates/app-cli   tauri-leptos-cli: the standalone server + config subcommands
+src-tauri        Tauri shell (non-dev builds embed the in-process server)
 appdir/          repo-local app root for reproducible dev runs
 ```
 
@@ -21,7 +21,7 @@ appdir/          repo-local app root for reproducible dev runs
 rustup target add wasm32-unknown-unknown
 cargo install cargo-leptos tauri-cli
 # optional dev tools
-cargo install bacon cargo-nextest cargo-deny leptosfmt mprocs
+cargo install bacon cargo-nextest cargo-deny leptosfmt
 ```
 
 ## Quick start
@@ -30,21 +30,20 @@ cargo install bacon cargo-nextest cargo-deny leptosfmt mprocs
 cargo tauri dev          # desktop: spawns cargo leptos watch, window on :3000
 ```
 
-For browser work run the pair yourself:
+For browser work:
 
 ```bash
-mprocs                   # watch (:3000, hot reload) + API server (:3001)
+cargo leptos watch       # everything on :3000 (SSR + api + ws, hot reload)
 ```
 
-UI edits hot-reload through the watch; the API server keeps its state
-(try `/api/counter`). The page learns the API address from the
-`api-base` meta the dev server injects; in production everything is
-same-origin and relative.
+`view!`/CSS edits hot-patch in place; edits to Rust logic restart the
+dev server (in-memory demo state resets, like a redeploy). Everything
+is same-origin and relative, in dev and production alike.
 
 ## Production build
 
 ```bash
-cargo tauri build -f ssr          # desktop bundle
+cargo tauri build                 # desktop bundle
 ./scripts/build-deb.sh            # Raspberry Pi deb (binary + site + systemd unit)
 cargo tauri android build         # Android APK (server in-process, assets from the APK)
 ```

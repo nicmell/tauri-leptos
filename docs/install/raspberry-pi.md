@@ -59,7 +59,7 @@ scsynth's SHM, which this app will map.
 
 ```bash
 cargo leptos build --release
-cargo run -p tauri-leptos-cli -- serve --site-root target/site --listen 0.0.0.0:3000
+cargo run -p tauri-leptos-cli -- serve --site-root target/site --host 0.0.0.0 --port 3000
 ```
 
 Without `--site-root`, the Linux default is

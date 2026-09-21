@@ -1,6 +1,6 @@
 //! SSR-side routing (feature `ssr`): leptos pages + hydration assets,
-//! optionally merged with the core API for the single-origin production
-//! server.
+//! merged with the core API into the single-origin server used
+//! everywhere (dev watch, cli, tauri shell).
 //!
 //! Asset serving goes through [`SiteAssets`], one interface for every
 //! run mode: a plain directory (cli, dev frontend-server, tests) or the
@@ -65,26 +65,20 @@ pub fn leptos_options(addr: SocketAddr) -> LeptosOptions {
         .build()
 }
 
-/// SSR routes + asset serving. `api_base` = the API origin injected into
-/// the page (dev frontend-server); `None` = same origin (prod).
-pub fn leptos_router(
-    options: LeptosOptions,
-    api_base: Option<String>,
-    assets: Arc<dyn SiteAssets>,
-) -> Router {
+/// SSR routes + asset serving.
+pub fn leptos_router(options: LeptosOptions, assets: Arc<dyn SiteAssets>) -> Router {
     let routes = generate_route_list(App);
     // Non-asset misses render the app shell (its router shows the
     // fallback route), same behavior as leptos's own file handler.
     let render_shell = leptos_axum::render_app_to_stream({
         let options = options.clone();
-        let api_base = api_base.clone();
-        move || shell(options.clone(), api_base.clone())
+        move || shell(options.clone())
     });
 
     Router::new()
         .leptos_routes(&options, routes, {
             let options = options.clone();
-            move || shell(options.clone(), api_base.clone())
+            move || shell(options.clone())
         })
         .fallback(move |req: Request| {
             let assets = assets.clone();
@@ -110,8 +104,8 @@ fn serve_file(rel: &str, file: std::fs::File) -> Response {
         .into_response()
 }
 
-/// The complete production router: SSR + the core API on one origin,
-/// so the client uses relative URLs.
+/// The complete router: SSR + the core API on one origin, everywhere —
+/// the client always uses relative URLs.
 pub fn router(options: LeptosOptions, assets: Arc<dyn SiteAssets>) -> Router {
-    leptos_router(options, None, assets).merge(tauri_leptos_core::server::api_router())
+    leptos_router(options, assets).merge(tauri_leptos_core::server::api_router())
 }

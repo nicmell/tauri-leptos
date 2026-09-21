@@ -57,10 +57,11 @@ bacon                                           # watch loop (c=clippy w=wasm t=
   (internal; `dev.upstream` in config, leptos `site-addr`, `devUrl` must
   all match), 3002 = reload, ephemeral = shell. Build features pick the
   content: the shell under `cfg(dev)` = api + reverse proxy to the
-  watch; everything else = embedded frontend. No app cargo features at
-  all — core owns the router (`Ctx::site_router`/`proxy_router`), ui
-  is the leptos-only `pages()` (no core dependency, 404 on unknown
-  paths).
+  watch; everything else = embedded frontend. No app cargo features,
+  no compile branches in the entrypoints — core owns the ONE router
+  (`Ctx::router`, host-inferred; `cfg!(dev)` flows in as data); ui is
+  the leptos-only `server::router(addr, api_base)` (no core
+  dependency, 404 on unknown paths).
 - Any server built with plain cargo serves a **release** site — dev
   cargo-leptos builds only hydrate against their own watch.
 - No LICENSE yet: crates are `publish = false`, cargo-deny ignores

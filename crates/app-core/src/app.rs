@@ -1,8 +1,8 @@
-//! The app: one entrypoint shape for cli and shell. `app(ctx, router)`
-//! takes the router factory (the leptos site router, or the dev proxy
-//! in the shell's dev runs); `serve` binds immediately — pass port 0
-//! for an ephemeral port — and returns a [`Serving`]: read the bound
-//! address, then await it (or hand it to a runtime spawn).
+//! The app: one entrypoint shape for cli and shell. `serve` binds
+//! immediately — pass port 0 for an ephemeral port — builds the
+//! host-inferred router ([`Ctx::router`]) on the bound address and
+//! returns a [`Serving`]: read the address, then await it (or hand it
+//! to a runtime spawn).
 
 use std::future::Future;
 use std::io;
@@ -10,29 +10,17 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use axum::Router;
-
 use crate::bootstrap::Ctx;
 use crate::server::{Server, shutdown_signal};
 
-pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
-type RouterFactory = Box<dyn FnOnce(&Ctx, SocketAddr) -> Result<Router, BoxError> + Send>;
+pub use crate::bootstrap::BoxError;
 
 pub struct App {
     ctx: Ctx,
-    router: RouterFactory,
 }
 
-/// The factory receives the bound address — known only after `serve`
-/// binds, which is why it is a factory and not a router.
-pub fn app(
-    ctx: Ctx,
-    router: impl FnOnce(&Ctx, SocketAddr) -> Result<Router, BoxError> + Send + 'static,
-) -> App {
-    App {
-        ctx,
-        router: Box::new(router),
-    }
+pub fn app(ctx: Ctx) -> App {
+    App { ctx }
 }
 
 impl App {
@@ -43,7 +31,7 @@ impl App {
         self.ctx.paths.ensure_dirs()?;
         let server = Server::bind(listen)?;
         let addr = server.local_addr()?;
-        let router = (self.router)(&self.ctx, addr)?;
+        let router = self.ctx.router(addr)?;
         tracing::info!(%addr, "server up");
         Ok(Serving {
             addr,

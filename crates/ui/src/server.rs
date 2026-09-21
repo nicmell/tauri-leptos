@@ -1,6 +1,6 @@
 //! SSR-side routing (feature `ssr`): the leptos pages and server
 //! functions, self-contained — asset serving and the api live in
-//! app-core, which mounts [`pages`] as the miss handler of its asset
+//! app-core, which mounts [`router`] as the miss handler of its asset
 //! layer. Unknown paths are a plain 404 (axum's default fallback).
 
 use std::net::SocketAddr;
@@ -30,7 +30,7 @@ fn leptos_options(addr: SocketAddr) -> LeptosOptions {
 /// The SSR pages + server functions. `api_base` = the origin the
 /// client sends api/ws requests to, injected into the page (`None` =
 /// same origin).
-pub fn pages(addr: SocketAddr, api_base: Option<String>) -> Router {
+pub fn router(addr: SocketAddr, api_base: Option<String>) -> Router {
     let options = leptos_options(addr);
     let routes = generate_route_list(App);
     Router::new()

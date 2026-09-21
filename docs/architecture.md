@@ -10,13 +10,13 @@ dev/build flow drives everything.
 ```
 crates/ui        Leptos frontend, a pure library with no core
                  dependency: lib (feature hydrate) is the wasm client;
-                 server.rs (feature ssr) is just pages() — SSR routes
-                 + server fns, 404 on unknown paths.
+                 server.rs (feature ssr) is just router(addr, api_base)
+                 — SSR routes + server fns, 404 on unknown paths.
 crates/app-core  everything else: config + paths + logging + the API
-                 router (/api/hello, /api/counter, /ws), the asset
-                 backends (assets::Assets), and the router owners
-                 Ctx::site_router / Ctx::proxy_router (core depends
-                 on ui).
+                 router (/api/hello, /api/counter, /ws), the private
+                 asset backends, and the ONE router — Ctx::router,
+                 inferred from the Host fixed at bootstrap (core
+                 depends on ui).
 crates/app-cli   tauri-leptos-cli: thin wrapper around the single-origin
                  router; build features pick what it serves.
 src-tauri        Tauri shell: in-process server on an ephemeral port,
@@ -26,11 +26,11 @@ src-tauri        Tauri shell: in-process server on an ephemeral port,
 ## One origin everywhere
 
 Every mode serves a single origin, and no app crate has cargo
-features: core depends on ui and owns the router — `Ctx::site_router`
-(leptos pages + assets + api) and `Ctx::proxy_router` (dev). The cli
-is always the full server (a remote api server is the same binary
-with `cors_origins` set). Dev vs release in the shell is `cfg(dev)`,
-emitted by tauri-build:
+features: core depends on ui and owns the ONE router — `Ctx::router`,
+inferred from the `Host` fixed at bootstrap (`resolve` = standalone,
+`from_tauri(app, cfg!(dev))` = shell; the mode is runtime data, never
+a compile branch in an entrypoint). The cli is always the full server
+(a remote api server is the same binary with `cors_origins` set):
 
 ```
 dev      cargo leptos watch ──► runs the cli (site build) on :3001
@@ -142,10 +142,9 @@ first run seeds the defaults, an invalid config refuses to start) and
 runs through `core::app`:
 
 ```rust
-app(ctx, factory)             // factory: ctx.site_router(addr, assets),
-    .serve(listen)?           //   or ctx.proxy_router() under cfg(dev)
-    .await                    // binds now (port 0 = ephemeral); await it
-                              //   or hand the Serving to a runtime spawn
+app(ctx)                      // the router is host-inferred: ctx.router(addr)
+    .serve(listen)?           // binds now (port 0 = ephemeral); await it
+    .await                    //   or hand the Serving to a runtime spawn
 ```
 
 The factory receives the bound address (the site router needs it, and

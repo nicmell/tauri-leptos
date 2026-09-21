@@ -13,7 +13,7 @@ tracing-appender.workspace = true
 axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
-axum-reverse-proxy.workspace = true
+axum-reverse-proxy = { workspace = true, optional = true }
 tauri-leptos-ui = { path = "../ui", features = ["ssr"] }
 mime_guess = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
@@ -33,6 +33,7 @@ paranoid-android.workspace = true
 tauri = [
   "dep:tauri",
   "dep:tauri-plugin-fs",
+  "dep:axum-reverse-proxy",
   "dep:mime_guess",
   "dep:tokio-util",
 ]

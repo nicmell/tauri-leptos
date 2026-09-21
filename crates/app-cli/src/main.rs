@@ -69,28 +69,6 @@ enum ConfigAction {
     },
 }
 
-/// The single-origin router: embedded SSR frontend + api. The site
-/// must be a release build (`cargo leptos build --release`).
-fn site_router(ctx: &Ctx, listen: SocketAddr) -> axum::Router {
-    // Relative site_root resolves against the config dir; absent =
-    // the cargo-leptos output (dev runs from the workspace).
-    let site_root = ctx
-        .config
-        .site_root_resolved(&ctx.paths.app_config_dir, "target/site");
-    if !site_root.join("pkg").exists() {
-        tracing::warn!(
-            site_root = %site_root.display(),
-            "site root looks empty - run `cargo leptos build --release` \
-             and install/point `site_root` in the config at it"
-        );
-    }
-    tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
-    ctx.site_router(
-        listen,
-        tauri_leptos_core::assets::StaticAssets::from_site_root(site_root),
-    )
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let cli = Cli::parse();
@@ -115,8 +93,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             let log_to_file = log_to_file || ctx.config.log_to_file;
             let _log_guard = logging::init(log_to_file.then_some(ctx.paths.app_log_dir.as_path()));
 
-            let app = tauri_leptos_core::app::app(ctx, |ctx, addr| Ok(site_router(ctx, addr)));
-            app.serve(listen)?.await?;
+            tauri_leptos_core::app::app(ctx).serve(listen)?.await?;
         }
         Command::Config { action } => {
             let paths =

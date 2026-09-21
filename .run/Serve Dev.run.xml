@@ -1,8 +1,11 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Tauri" type="CargoCommandRunConfiguration" factoryName="Cargo Command" nameIsGenerated="true">
-    <option name="command" value="tauri dev" />
+  <configuration default="false" name="Serve Dev" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="buildProfileId" value="dev" />
+    <option name="command" value="run -p tauri-leptos-cli --no-default-features --features dev -- serve" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <envs />
+    <envs>
+      <env name="TAURI_LEPTOS_APP_DIR" value="$PROJECT_DIR$/appdir" />
+    </envs>
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />

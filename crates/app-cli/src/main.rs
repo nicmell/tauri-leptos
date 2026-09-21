@@ -1,7 +1,15 @@
 //! The app server as a plain unix daemon (systemd-friendly: stderr
 //! logging, *_DIRECTORY env vars honored by the paths module). A thin
-//! wrapper around the single-origin leptos router: SSR + api + ws on
-//! one port.
+//! wrapper around the single-origin router; what it serves depends on
+//! the build:
+//!
+//! - `site` (default): embedded SSR frontend + api.
+//! - `dev`: api here, pages/assets reverse-proxied from the
+//!   `cargo leptos watch` server — api state survives frontend rebuilds.
+//! - neither: api only (a remote api server for frontends elsewhere).
+
+#[cfg(all(feature = "site", feature = "dev"))]
+compile_error!("features `site` and `dev` are mutually exclusive");
 
 use std::error::Error;
 use std::net::{IpAddr, SocketAddr};
@@ -29,7 +37,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run the server: SSR frontend + API on one origin
+    /// Run the server on one origin (what it serves depends on the
+    /// build features; see the crate docs)
     Serve {
         /// Bind address (overrides the configured host)
         #[arg(long)]
@@ -37,10 +46,6 @@ enum Command {
         /// Bind port (overrides the configured port)
         #[arg(long)]
         port: Option<u16>,
-        /// Frontend bundle directory (default: the platform share dir on
-        /// Linux, target/site elsewhere)
-        #[arg(long)]
-        site_root: Option<PathBuf>,
         /// Also write logs to a daily-rolling file in the app log dir
         #[arg(long)]
         log_to_file: bool,
@@ -66,6 +71,50 @@ enum ConfigAction {
     },
 }
 
+/// Full build: embedded SSR frontend + api. The site must be a release
+/// build (`cargo leptos build --release`).
+#[cfg(feature = "site")]
+fn app_router(config: &AppConfig, listen: SocketAddr) -> axum::Router {
+    let site_root = config
+        .site_root
+        .clone()
+        .unwrap_or_else(AppPaths::default_site_root);
+    if !site_root.join("pkg").exists() {
+        tracing::warn!(
+            site_root = %site_root.display(),
+            "site root looks empty - run `cargo leptos build --release` \
+             and install/point `site_root` in the config at it"
+        );
+    }
+    tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
+    let options = tauri_leptos_ui::server::leptos_options(listen);
+    tauri_leptos_ui::server::router(
+        options,
+        tauri_leptos_core::assets::DirAssets(site_root),
+        config,
+    )
+}
+
+/// Dev build: api lives here (stable across frontend rebuilds), pages
+/// and assets come from the watch server through the reverse proxy.
+#[cfg(all(feature = "dev", not(feature = "site")))]
+fn app_router(config: &AppConfig, _listen: SocketAddr) -> axum::Router {
+    use tauri_leptos_core::assets::{Assets, ProxyAssets};
+    tracing::info!(upstream = %config.dev.upstream, "dev server (api + proxy to the watch)");
+    server::api_router(&config.cors_origins)
+        .merge(ProxyAssets(config.dev.upstream.clone()).into_router(axum::Router::new()))
+}
+
+/// Api-only build: a remote api server for frontends running elsewhere.
+#[cfg(not(any(feature = "site", feature = "dev")))]
+fn app_router(config: &AppConfig, _listen: SocketAddr) -> axum::Router {
+    tracing::info!("api-only server");
+    server::api_router(&config.cors_origins).route(
+        "/",
+        axum::routing::get(|| async { "tauri-leptos api server" }),
+    )
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
@@ -76,7 +125,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Command::Serve {
             host,
             port,
-            site_root,
             log_to_file,
         } => {
             // Invalid config is a hard error: systemd must see the failure.
@@ -90,21 +138,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let _log_guard = logging::init(log_to_file.then_some(paths.app_log_dir.as_path()));
             paths.ensure_dirs()?;
 
-            // The site must be a release build (`cargo leptos build --release`).
-            let site_root = site_root.unwrap_or_else(AppPaths::default_site_root);
-            if !site_root.join("pkg").exists() {
-                tracing::warn!(
-                    site_root = %site_root.display(),
-                    "site root looks empty - run `cargo leptos build --release` \
-                     and install/point --site-root at it"
-                );
-            }
-            tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
-            let options = tauri_leptos_ui::server::leptos_options(listen);
-            let app = tauri_leptos_ui::server::router(
-                options,
-                std::sync::Arc::new(tauri_leptos_ui::server::DirAssets(site_root)),
-            );
+            let app = app_router(&config, listen);
 
             let srv = server::Server::bind(listen)?;
             tracing::info!(addr = %srv.local_addr()?, "server up");

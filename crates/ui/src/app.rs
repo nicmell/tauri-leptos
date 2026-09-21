@@ -9,13 +9,18 @@ use leptos_router::path;
 use serde::Deserialize;
 
 /// The SSR document shell; cargo-leptos injects the hydration assets.
-pub fn shell(options: LeptosOptions) -> impl IntoView {
+///
+/// `api_base` tells the page where the api lives: `None` = same origin
+/// (empty meta). The meta is always rendered — a conditional view in
+/// the head would not emit.
+pub fn shell(options: LeptosOptions, api_base: Option<String>) -> impl IntoView {
     view! {
         <!DOCTYPE html>
         <html lang="en">
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <meta name="api-base" content=api_base.unwrap_or_default() />
                 <AutoReload options=options.clone() />
                 <HydrationScripts options />
                 <MetaTags />
@@ -41,6 +46,17 @@ pub fn App() -> impl IntoView {
     }
 }
 
+/// Where the client sends api/ws requests: the origin from the
+/// `api-base` meta when present, otherwise "" = same origin.
+fn api_base() -> String {
+    document()
+        .query_selector("meta[name='api-base']")
+        .ok()
+        .flatten()
+        .and_then(|meta| meta.get_attribute("content"))
+        .unwrap_or_default()
+}
+
 #[derive(Deserialize)]
 struct HelloResponse {
     message: String,
@@ -54,16 +70,25 @@ async fn server_greet(name: String) -> Result<String, ServerFnError> {
     Ok(format!("Hello, {name}! (rendered by a server function)"))
 }
 
-/// One round trip through the server's `/ws` echo endpoint (same origin).
+/// One round trip through the api server's `/ws` echo endpoint.
 async fn ws_roundtrip(text: &str) -> Result<String, String> {
-    let location = window().location();
-    let host = location.host().map_err(|_| "no window host".to_owned())?;
-    let scheme = if location.protocol().map_err(|_| "no protocol".to_owned())? == "https:" {
-        "wss"
+    let base = api_base();
+    let ws_url = if base.is_empty() {
+        let location = window().location();
+        let host = location.host().map_err(|_| "no window host".to_owned())?;
+        let scheme = if location.protocol().map_err(|_| "no protocol".to_owned())? == "https:" {
+            "wss"
+        } else {
+            "ws"
+        };
+        format!("{scheme}://{host}/ws")
+    } else if let Some(rest) = base.strip_prefix("https") {
+        format!("wss{rest}/ws")
+    } else if let Some(rest) = base.strip_prefix("http") {
+        format!("ws{rest}/ws")
     } else {
-        "ws"
+        return Err(format!("unsupported api base: {base}"));
     };
-    let ws_url = format!("{scheme}://{host}/ws");
     let mut ws = WebSocket::open(&ws_url).map_err(|e| e.to_string())?;
     ws.send(Message::Text(text.to_owned()))
         .await
@@ -98,7 +123,7 @@ fn HomePage() -> impl IntoView {
                 return;
             }
 
-            let message = match Request::get("/api/hello")
+            let message = match Request::get(&format!("{}/api/hello", api_base()))
                 .query([("name", name.as_str())])
                 .send()
                 .await

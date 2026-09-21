@@ -27,18 +27,22 @@ cargo install bacon cargo-nextest cargo-deny leptosfmt
 ## Quick start
 
 ```bash
-cargo tauri dev          # desktop: spawns cargo leptos watch, window on :3000
+cargo tauri dev -- --no-default-features --features dev
+                         # desktop: spawns the watch, ephemeral window
 ```
 
 For browser work:
 
 ```bash
-cargo leptos watch       # everything on :3000 (SSR + api + ws, hot reload)
+cargo leptos watch       # frontend half (:3001, internal)
+cargo run -p tauri-leptos-cli --no-default-features --features dev -- serve
+                         # api half; open http://127.0.0.1:3000
 ```
 
-`view!`/CSS edits hot-patch in place; edits to Rust logic restart the
-dev server (in-memory demo state resets, like a redeploy). Everything
-is same-origin and relative, in dev and production alike.
+One origin on :3000: the cli serves the api and reverse-proxies pages
+and assets from the watch, so api state survives frontend rebuilds
+(try `/api/counter`). Everything is same-origin and relative, in dev
+and production alike.
 
 ## Production build
 

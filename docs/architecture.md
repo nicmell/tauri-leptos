@@ -9,38 +9,49 @@ dev/build flow drives everything.
 
 ```
 crates/ui        Leptos app. lib (feature hydrate): the wasm client.
-                 bin  (feature ssr): the dev server run by
-                 `cargo leptos watch`. server.rs: leptos_options,
-                 leptos_router(options, assets), merged router().
+                 bin  (feature ssr): the watch server run by
+                 `cargo leptos watch` (:3001, internal). server.rs:
+                 leptos_options, leptos_router(options, assets), router().
 crates/app-core  config + paths + logging + the API router (axum:
-                 /api/hello, /api/counter, /ws) and bind/serve/shutdown.
-crates/app-cli   tauri-leptos-cli: thin wrapper around the merged
-                 single-origin router (`--host`/`--port`/`--site-root`);
-                 plus `config write|validate`.
-src-tauri        Tauri shell. Non-dev builds embed the in-process server.
+                 /api/hello, /api/counter, /ws), bind/serve/shutdown,
+                 and the asset backends (assets::Assets).
+crates/app-cli   tauri-leptos-cli: thin wrapper around the single-origin
+                 router; build features pick what it serves.
+src-tauri        Tauri shell: in-process server on an ephemeral port,
+                 always; build features pick what it serves.
 ```
 
-## One router, one port — everywhere
+## One origin, feature-picked content
 
-Every mode mounts the same merged router (`ui::server::router` =
-leptos routes + core API + `/ws`) on a single origin. The client always
-uses relative URLs: no CORS anywhere, no second port, no injected
-API address.
+Every mode serves a single origin; the build features of the cli and
+the shell pick what lives behind it:
+
+| features | serves |
+| --- | --- |
+| `site` (default) | embedded SSR frontend + api |
+| `dev` | api locally, pages/assets reverse-proxied from the watch |
+| neither (cli only) | api only — a remote api server |
 
 ```
-dev      cargo leptos watch ──► ui bin :3000   (hot reload)
+dev      cargo leptos watch ──► watch server :3001 (SSR, hot reload, internal)
+         cli/shell dev build ──► api + reverse proxy to :3001
+         browser entry :3000 (cli) · tauri window: ephemeral port
 cli      tauri-leptos-cli serve ──► --host/--port (default 127.0.0.1:3000)
-tauri    in-process server, window loads it
+tauri    in-process server on an ephemeral port, window created on it
 ```
 
 Dev notes:
 
-- `view!`/CSS edits hot-patch without restarting; edits to Rust logic
-  rebuild and **restart the dev server process**, so in-memory api
-  state resets — the same thing a redeploy does. Real state belongs in
-  an external store, not in process memory.
-- `cargo tauri dev` spawns its own watch (`beforeDevCommand`) and opens
-  the window on it.
+- The dev split is invisible to the client: one origin, relative URLs.
+  The api process (cli or shell) **survives frontend rebuilds** —
+  `/api/counter` proves it. Pages are rendered by the watch (dev
+  hot-reload instrumentation only hydrates against its own process),
+  server-fn POSTs pass through the reverse proxy.
+- `view!`/CSS edits hot-patch in place; edits to Rust logic rebuild
+  only the watch server.
+- `cargo tauri dev -- --no-default-features --features dev` spawns the
+  watch (`beforeDevCommand`) and proxies to it; runner args pass the
+  feature set through to cargo.
 - **Server functions stay stateless by convention**; state lives behind
   `/api` and `/ws` in `core::server::api_router`.
 
@@ -57,15 +68,30 @@ for unbundled runs.
 The fixed `127.0.0.1:3000` remains only where an anchor is needed:
 the dev watch (devUrl, adb reverse) and the cli default.
 
-## Unified asset serving (SiteAssets)
+## Remote api (`api_base`)
 
-Every mode serves site assets through one interface —
-`ui::server::SiteAssets` (`open(rel) -> std::fs::File`), plugged into
-the router's fallback (stream + mime on hit, SSR shell on miss):
+The frontend and the api can live on different hosts: whoever renders
+the SSR page injects its configured `api_base` into the
+`<meta name="api-base">` (always present; empty = same origin, the
+default), and the client sends fetch/WS there. The api host then
+needs `cors_origins` covering the frontend's origin — the tauri
+shell's origin is ephemeral, so a device pointing at a remote api
+typically needs `"*"` (an explicit, documented choice). WebSockets
+are not subject to CORS. Example: the android app with the embedded
+frontend and `api_base = "http://<pi>:3000"`, the Pi running an
+api-only build (`--no-default-features`) with matching
+`cors_origins`.
+
+## Asset backends (core::assets::Assets)
+
+Site serving goes through one interface —
+`assets::Assets { into_router(self, on_miss) }` — where `on_miss`
+renders the SSR shell in full builds:
 
 | impl | used by | resolution |
 | --- | --- | --- |
-| `DirAssets(dir)` | cli `--site-root`, dev frontend-server, tests | plain filesystem + traversal guard |
+| `DirAssets(dir)` (core) | cli `site` builds, watch server, tests | `tower_http::ServeDir` (traversal guard, ETag, ranges) |
+| `ProxyAssets(url)` (core, feature `dev`) | cli/shell dev builds | reverse proxy to the watch (`axum-reverse-proxy`) |
 | `TauriAssets` (src-tauri) | desktop bundle AND Android, same code | `resource_dir()/site` via the fs plugin (desktop: real files; Android: APK assets as file descriptors) |
 
 On Android there is no extraction: assets are opened from the APK per
@@ -92,11 +118,17 @@ attach to the watch, everything else embeds the server.
 
 | field | default | meaning |
 | --- | --- | --- |
-| `listen` | `127.0.0.1:3000` | server bind address (SSR + api + ws) |
+| `listen` | `127.0.0.1:3000` | server bind address |
+| `site_root` | platform default | frontend bundle dir (`site` builds) |
+| `api_base` | none (same origin) | origin the client sends api/ws to |
+| `cors_origins` | empty (no CORS) | origins allowed on `/api` (`"*"` = any) |
 | `log_to_file` | `false` | daily-rolling file in the app log dir |
+| `dev.upstream` | `http://127.0.0.1:3001` | watch server the dev proxy targets |
 
 The cli fails fast on an invalid file (systemd must see it); unknown
 fields are rejected. `serve --host`/`--port` override `listen`.
+`dev.upstream` must match `site-addr` in the leptos metadata and
+`devUrl` in tauri.conf.json — three places, kept aligned by hand.
 
 ## Paths
 
@@ -117,20 +149,25 @@ default.
 ## Dev workflows
 
 ```bash
-cargo leptos watch           # browser dev: everything on :3000
-cargo tauri dev              # desktop: spawns the watch, window on :3000
-cargo tauri build            # production bundle (merged in-process server)
+cargo leptos watch           # the frontend half (:3001, internal)
+cargo run -p tauri-leptos-cli --no-default-features --features dev -- serve
+                             # the api half; browser entry on :3000
+cargo tauri dev -- --no-default-features --features dev
+                             # desktop: spawns the watch, ephemeral window
+cargo tauri build            # production bundle (embedded frontend)
 cargo leptos build --release # site for plain-cargo servers
 ```
 
 ## Standalone / Raspberry Pi
 
-`tauri-leptos-cli serve` (no flags) runs the same merged single-origin
-server standalone: site from `--site-root` (deb: `/usr/share/tauri-leptos/site`;
-manual Linux default `/usr/local/share/tauri-leptos/site`; elsewhere
+`tauri-leptos-cli serve` (no flags) runs the single-origin server
+standalone: site from `site_root` in the config (Linux default
+`/usr/share/tauri-leptos/site` — the deb path; elsewhere
 `target/site`); bind from `--host`/`--port` (default `127.0.0.1:3000` —
-the Pi unit passes `--host 0.0.0.0`). Packaging: `scripts/build-deb.sh`
-→ deb with binary+site+system unit (enable/start on install). See
+the Pi unit passes `--host 0.0.0.0`). Build without default features
+for an api-only server (remote frontends). Packaging:
+`scripts/build-deb.sh` → deb with binary+site+system unit
+(enable/start on install). See
 [install/raspberry-pi.md](install/raspberry-pi.md).
 
 ## Out of scope for now

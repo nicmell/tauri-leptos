@@ -14,7 +14,7 @@ cargo tauri build
 ```
 
 Non-dev builds compile the in-process single-origin server into the shell
-(without it the app expects a running `cargo leptos watch` — that is
+(the dev build instead proxies to a running `cargo leptos watch` — that is
 the dev configuration). `cargo leptos build --release` runs first
 automatically and the site is bundled into the app's Resources.
 Bundles land in `target/release/bundle/` (`.app`, `.dmg`).

@@ -1,19 +1,19 @@
 #![cfg(feature = "ssr")]
 
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
-use tauri_leptos_ui::server::{DirAssets, SiteAssets};
+use tauri_leptos_core::assets::DirAssets;
+use tauri_leptos_core::config::AppConfig;
 use tower::ServiceExt;
 
 fn options() -> leptos::prelude::LeptosOptions {
     tauri_leptos_ui::server::leptos_options(SocketAddr::from(([127, 0, 0, 1], 0)))
 }
 
-fn site_assets() -> Arc<dyn SiteAssets> {
-    Arc::new(DirAssets("target/site".into()))
+fn site_assets() -> DirAssets {
+    DirAssets("target/site".into())
 }
 
 async fn get(app: axum::Router, uri: &str) -> (StatusCode, Option<String>, String) {
@@ -42,7 +42,7 @@ async fn get(app: axum::Router, uri: &str) -> (StatusCode, Option<String>, Strin
 
 #[tokio::test]
 async fn production_router_renders_and_merges_the_api() {
-    let app = tauri_leptos_ui::server::router(options(), site_assets());
+    let app = tauri_leptos_ui::server::router(options(), site_assets(), &AppConfig::default());
 
     let (status, _, html) = get(app.clone(), "/").await;
     assert_eq!(status, StatusCode::OK);
@@ -52,6 +52,8 @@ async fn production_router_renders_and_merges_the_api() {
     assert!(html.contains("/pkg/tauri-leptos.js"));
     assert!(html.contains("/pkg/tauri-leptos.wasm"));
     assert!(!html.contains("_bg.wasm"));
+    // No api_base configured -> empty meta, the client stays relative.
+    assert!(html.contains(r#"<meta name="api-base" content="">"#));
 
     let (status, _, body) = get(app, "/api/hello?name=ssr").await;
     assert_eq!(status, StatusCode::OK);
@@ -65,8 +67,11 @@ async fn assets_are_served_with_their_mime_type() {
         eprintln!("skipping: target/site not built");
         return;
     }
-    let app =
-        tauri_leptos_ui::server::router(options(), Arc::new(DirAssets("../../target/site".into())));
+    let app = tauri_leptos_ui::server::router(
+        options(),
+        DirAssets("../../target/site".into()),
+        &AppConfig::default(),
+    );
     let (status, content_type, body) = get(app, "/pkg/tauri-leptos.js").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(content_type.as_deref(), Some("text/javascript"));
@@ -75,14 +80,30 @@ async fn assets_are_served_with_their_mime_type() {
 
 #[tokio::test]
 async fn unknown_paths_render_the_shell() {
-    let app = tauri_leptos_ui::server::router(options(), site_assets());
+    let app = tauri_leptos_ui::server::router(options(), site_assets(), &AppConfig::default());
     let (_, _, html) = get(app, "/no-such-page").await;
     assert!(html.contains("not found"));
 }
 
-#[test]
-fn dir_assets_reject_traversal() {
-    let assets = DirAssets("target/site".into());
-    assert!(assets.open("../Cargo.toml").is_err());
-    assert!(assets.open("/etc/hosts").is_err());
+#[tokio::test]
+async fn configured_api_base_is_injected() {
+    let config = AppConfig {
+        api_base: Some("http://pi.local:3000".to_owned()),
+        ..AppConfig::default()
+    };
+    let app = tauri_leptos_ui::server::router(options(), site_assets(), &config);
+    let (status, _, html) = get(app, "/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(html.contains(r#"<meta name="api-base" content="http://pi.local:3000">"#));
+}
+
+// ServeDir carries its own traversal guard; escaping the root must
+// fall through to the shell, never leak a file.
+#[tokio::test]
+async fn traversal_never_leaks_files() {
+    for path in ["/..%2fCargo.toml", "/../Cargo.toml", "/%2e%2e/Cargo.toml"] {
+        let app = tauri_leptos_ui::server::router(options(), site_assets(), &AppConfig::default());
+        let (_, _, body) = get(app, path).await;
+        assert!(!body.contains("[package]"), "{path} leaked a file");
+    }
 }

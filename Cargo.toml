@@ -32,6 +32,8 @@ leptos_axum = "0.8"
 wasm-bindgen = "0.2"
 gloo-net = { version = "0.7", features = ["http", "websocket"] }
 futures = "0.3"
+tower-http = { version = "0.6", features = ["fs", "cors"] }
+axum-reverse-proxy = { version = "2.2", default-features = false }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "registry"] }
 tracing-web = "0.1"
@@ -73,7 +75,7 @@ lib-package = "tauri-leptos-ui"
 lib-features = ["hydrate"]
 site-root = "target/site"
 site-pkg-dir = "pkg"
-site-addr = "127.0.0.1:3000"
+site-addr = "127.0.0.1:3001"
 # 3001 is the API server; live-reload ws stays clear of it
 reload-port = 3002
 assets-dir = "crates/ui/assets"

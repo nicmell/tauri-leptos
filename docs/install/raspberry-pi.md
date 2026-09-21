@@ -59,8 +59,14 @@ scsynth's SHM, which this app will map.
 
 ```bash
 cargo leptos build --release
-cargo run -p tauri-leptos-cli -- serve --site-root target/site --host 0.0.0.0 --port 3000
+cargo run -p tauri-leptos-cli -- serve --host 0.0.0.0 --port 3000
 ```
 
-Without `--site-root`, the Linux default is
-`/usr/local/share/tauri-leptos/site` (for hand-installed sites).
+For an api-only Pi (frontends elsewhere) build with
+`--no-default-features` and set `cors_origins` in the config to the
+frontend origins (`"*"` for tauri shells — their origin is ephemeral).
+
+The site comes from `site_root` in the config; the Linux default is
+`/usr/share/tauri-leptos/site` (where the deb installs it). On a dev
+machine set `site_root = "target/site"` in the config (or use
+`--app-dir appdir`).

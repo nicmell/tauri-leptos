@@ -19,14 +19,10 @@ tauri-build.workspace = true
 [dependencies]
 tauri.workspace = true
 tracing.workspace = true
-tauri-leptos-core.workspace = true
+tauri-leptos-core = { workspace = true, features = ["tauri"] }
 tauri-leptos-ui = { path = "../crates/ui", features = ["ssr"], optional = true }
 tauri-plugin-fs.workspace = true
 axum.workspace = true
-tower.workspace = true
-mime_guess.workspace = true
-tokio-util.workspace = true
-tokio.workspace = true
 
 [features]
 default = ["site"]

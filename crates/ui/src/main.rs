@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = tauri_leptos_ui::server::leptos_router(
         options,
         api_base,
-        tauri_leptos_core::assets::DirAssets("target/site".into()),
+        tauri_leptos_core::assets::StaticAssets::from_site_root("target/site"),
     );
 
     let srv = server::Server::bind(listen)?;

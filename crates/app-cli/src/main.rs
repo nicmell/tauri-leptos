@@ -90,7 +90,7 @@ fn app_router(config: &AppConfig, listen: SocketAddr) -> axum::Router {
     let options = tauri_leptos_ui::server::leptos_options(listen);
     tauri_leptos_ui::server::router(
         options,
-        tauri_leptos_core::assets::DirAssets(site_root),
+        tauri_leptos_core::assets::StaticAssets::from_site_root(site_root),
         config,
     )
 }

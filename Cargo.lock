@@ -4617,15 +4617,11 @@ name = "tauri-leptos"
 version = "0.1.0"
 dependencies = [
  "axum",
- "mime_guess",
  "tauri",
  "tauri-build",
  "tauri-leptos-core",
  "tauri-leptos-ui",
  "tauri-plugin-fs",
- "tokio",
- "tokio-util",
- "tower",
  "tracing",
 ]
 
@@ -4648,10 +4644,14 @@ dependencies = [
  "axum",
  "axum-reverse-proxy",
  "dirs",
+ "mime_guess",
  "paranoid-android",
  "serde",
  "serde_json",
+ "tauri",
+ "tauri-plugin-fs",
  "tokio",
+ "tokio-util",
  "toml 1.1.6+spec-1.1.0",
  "tower",
  "tower-http",

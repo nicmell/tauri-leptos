@@ -60,6 +60,21 @@ impl AppPaths {
         }
     }
 
+    /// Resolution inside a Tauri app: the real path API (feature
+    /// `tauri`), instead of the standalone mirror below.
+    #[cfg(feature = "tauri")]
+    pub fn from_tauri<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<Self, tauri::Error> {
+        use tauri::Manager;
+        let path = app.path();
+        Ok(Self {
+            app_config_dir: path.app_config_dir()?,
+            app_data_dir: path.app_data_dir()?,
+            app_local_data_dir: path.app_local_data_dir()?,
+            app_cache_dir: path.app_cache_dir()?,
+            app_log_dir: path.app_log_dir()?,
+        })
+    }
+
     /// Resolution for processes running without Tauri (the headless server).
     ///
     /// Precedence: explicit `app_dir` (CLI flag or env, resolved by the

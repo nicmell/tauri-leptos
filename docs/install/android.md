@@ -17,7 +17,7 @@ In non-dev builds the Tauri lib starts the merged single-origin
 server in-process on an ephemeral local port; the window is created on
 it at runtime, like on desktop (`cfg(dev)` is the shell's only
 compile-time branch). Assets are served
-**straight from the APK per request**: the `SiteAssets` implementation
+**straight from the APK per request**: the tauri-fs asset backend
 opens `resource_dir()/site/<path>` through the fs plugin's Rust API,
 which turns APK assets into real file descriptors (compressed assets
 are transparently copied to cache first — that is the correct path;

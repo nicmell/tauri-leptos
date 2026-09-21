@@ -13,7 +13,7 @@ use crate::app::{App, shell};
 
 /// The JS/wasm bundle name, fixed at build time by the cargo-leptos
 /// metadata (`name` in `[[workspace.metadata.leptos]]`).
-pub const OUTPUT_NAME: &str = "tauri-leptos";
+const OUTPUT_NAME: &str = "tauri-leptos";
 
 /// Leptos options assembled from our own values — the runtime never
 /// depends on cargo-leptos environment variables.

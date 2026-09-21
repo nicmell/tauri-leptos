@@ -13,7 +13,7 @@ use serde::Deserialize;
 /// `api_base` tells the page where the api lives: `None` = same origin
 /// (empty meta). The meta is always rendered — a conditional view in
 /// the head would not emit.
-pub fn shell(options: LeptosOptions, api_base: Option<String>) -> impl IntoView {
+pub(crate) fn shell(options: LeptosOptions, api_base: Option<String>) -> impl IntoView {
     view! {
         <!DOCTYPE html>
         <html lang="en">

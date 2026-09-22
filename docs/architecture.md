@@ -79,7 +79,10 @@ default), and the client sends fetch/WS there. **Server functions are
 NOT covered**: they always call the origin that rendered the page —
 they are part of the frontend server, not of the remote api. Put
 remote-capable logic behind `/api`, keep server functions for
-page-local concerns. The api host then
+page-local concerns. To make the contract visible in the URL — and
+route shadowing impossible — server functions live under **`/fn`**
+(`server-fn-prefix` in the leptos metadata + the `SERVER_FN_PREFIX`
+pin in `.cargo/config.toml`, which must match). The api host then
 needs `cors_origins` covering the frontend's origin — the tauri
 shell's origin is ephemeral, so a device pointing at a remote api
 typically needs `"*"` (an explicit, documented choice). WebSockets

@@ -54,9 +54,10 @@ bacon                                           # watch loop (c=clippy w=wasm t=
   `dep.workspace = true`. New dependencies must be ≥ 7 days old.
 - `serve` = the single-origin server (systemd/Pi); bind from
   `--host`/`--port` over the configured `listen`.
-- Server functions stay stateless by convention; state lives behind
-  `/api` and `/ws` in `core::server::api_router` (in-memory state
-  resets on dev rebuilds and redeploys alike).
+- Server functions stay stateless by convention and live under `/fn`
+  (`server-fn-prefix` + the `SERVER_FN_PREFIX` env pin must match);
+  state lives behind `/api` and `/ws` in `core::server::api_router`
+  (in-memory state resets on dev rebuilds and redeploys alike).
 - Ports: 3000 = app origin (cli entry/serve default), 3001 = watch
   (internal; `dev.upstream` in config, leptos `site-addr`, `devUrl` must
   all match), 3002 = reload, ephemeral = shell. Build features pick the

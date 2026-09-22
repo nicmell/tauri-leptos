@@ -71,6 +71,8 @@ strip = true
 name = "tauri-leptos"
 bin-package = "tauri-leptos-cli"
 bin-features = []
+# Must match SERVER_FN_PREFIX in .cargo/config.toml.
+server-fn-prefix = "/fn"
 lib-package = "tauri-leptos-ui"
 lib-features = ["hydrate"]
 site-root = "target/site"

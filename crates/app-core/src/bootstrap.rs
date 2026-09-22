@@ -60,13 +60,29 @@ impl fmt::Display for BootstrapError {
 impl std::error::Error for BootstrapError {}
 
 impl Ctx {
-    /// Standalone bootstrap (cli, watch server). `app_dir` = the CLI
-    /// flag; the app-dir env var is the fallback.
-    pub fn resolve(app_dir: Option<PathBuf>) -> Result<Self, BootstrapError> {
+    /// Standalone bootstrap from the command-line parameters (the
+    /// watch server runs the bare binary: everything `None`/`false`).
+    /// `app_dir` falls back to the app-dir env var; `host`/`port`
+    /// override the configured bind, `log_to_file` ORs into the
+    /// config — the flags land in the [`AppConfig`], no setters at
+    /// the call site.
+    pub fn from_cli(
+        app_dir: Option<PathBuf>,
+        host: Option<std::net::IpAddr>,
+        port: Option<u16>,
+        log_to_file: bool,
+    ) -> Result<Self, BootstrapError> {
         let app_dir = app_dir.or_else(app_dir_from_env);
         let paths =
             AppPaths::resolve_standalone(app_dir.as_deref()).map_err(BootstrapError::Paths)?;
-        let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
+        let mut config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
+        if let Some(host) = host {
+            config.listen.set_ip(host);
+        }
+        if let Some(port) = port {
+            config.listen.set_port(port);
+        }
+        config.log_to_file |= log_to_file;
         Ok(Self {
             paths,
             config,
@@ -191,7 +207,7 @@ mod tests {
         let paths = AppPaths::from_root(&dir);
         std::fs::create_dir_all(&paths.app_config_dir).expect("mkdir");
         std::fs::write(paths.app_config_dir.join(CONFIG_FILE), "nonsense = true\n").expect("write");
-        assert!(Ctx::resolve(Some(dir.clone())).is_err());
+        assert!(Ctx::from_cli(Some(dir.clone()), None, None, false).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -199,7 +215,7 @@ mod tests {
     fn first_run_seeds_and_starts() {
         let dir = std::env::temp_dir().join(format!("tl-boot-seed-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let ctx = Ctx::resolve(Some(dir.clone())).expect("seeds and starts");
+        let ctx = Ctx::from_cli(Some(dir.clone()), None, None, false).expect("seeds and starts");
         assert_eq!(ctx.config, AppConfig::default());
         assert!(ctx.paths.app_config_dir.join(CONFIG_FILE).is_file());
         let _ = std::fs::remove_dir_all(&dir);

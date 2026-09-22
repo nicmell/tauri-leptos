@@ -26,7 +26,7 @@ fn ctx(config: &AppConfig) -> Ctx {
                 .join(tauri_leptos_core::config::CONFIG_FILE),
         )
         .expect("seed test config");
-    Ctx::resolve(Some(dir)).expect("bootstrap test ctx")
+    Ctx::from_cli(Some(dir), None, None, false).expect("bootstrap test ctx")
 }
 
 fn site_config(site_root: &str) -> AppConfig {

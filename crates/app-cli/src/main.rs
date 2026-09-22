@@ -85,16 +85,13 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             log_to_file,
         } => {
             // Invalid config is a hard error: systemd must see the failure.
-            let mut ctx = Ctx::resolve(cli.app_dir)?;
-            // CLI flags override the configured bind.
-            if let Some(host) = host {
-                ctx.config.listen.set_ip(host);
-            }
-            if let Some(port) = port {
-                ctx.config.listen.set_port(port);
-            }
-            let log_to_file = log_to_file || ctx.config.log_to_file;
-            let _log_guard = logging::init(log_to_file.then_some(ctx.paths.app_log_dir.as_path()));
+            let ctx = Ctx::from_cli(cli.app_dir, host, port, log_to_file)?;
+            let _log_guard = logging::init(
+                ctx.config
+                    .log_to_file
+                    .then(|| ctx.paths.app_log_dir.clone())
+                    .as_deref(),
+            );
 
             tauri_leptos_core::app::app(ctx)?.start().await?;
         }

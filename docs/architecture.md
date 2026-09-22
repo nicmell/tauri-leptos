@@ -46,7 +46,7 @@ Dev notes:
 
 - The dev split is invisible to the client: one origin, relative URLs.
   The shell process — and its api state — **survives frontend
-  rebuilds** (`/api/counter` proves it). Pages are rendered by the
+  rebuilds** (POST `/api/counter` proves it). Pages are rendered by the
   watch (dev hot-reload instrumentation only hydrates against its own
   process), server-fn POSTs pass through the reverse proxy.
 - `view!`/CSS edits hot-patch in place; edits to Rust logic rebuild
@@ -63,8 +63,9 @@ in-process on `127.0.0.1:0` and creates the window at runtime
 (`WebviewWindowBuilder` in setup) on the real bound address — no fixed
 port can ever conflict with something else on the user's machine. The
 site comes from the bundled resources (`bundle.resources` →
-`resource_dir()/site`), with the workspace `target/site` as fallback
-for unbundled runs.
+`resource_dir()/site`); an unbundled `cargo run -p tauri-leptos` has
+no resources — point `site_root` in the config at a built site if you
+need that mode.
 
 The fixed `127.0.0.1:3000` remains only where an anchor is needed:
 the dev watch (devUrl, adb reverse) and the cli default.
@@ -74,7 +75,11 @@ the dev watch (devUrl, adb reverse) and the cli default.
 The frontend and the api can live on different hosts: whoever renders
 the SSR page injects its configured `api_base` into the
 `<meta name="api-base">` (always present; empty = same origin, the
-default), and the client sends fetch/WS there. The api host then
+default), and the client sends fetch/WS there. **Server functions are
+NOT covered**: they always call the origin that rendered the page —
+they are part of the frontend server, not of the remote api. Put
+remote-capable logic behind `/api`, keep server functions for
+page-local concerns. The api host then
 needs `cors_origins` covering the frontend's origin — the tauri
 shell's origin is ephemeral, so a device pointing at a remote api
 typically needs `"*"` (an explicit, documented choice). WebSockets

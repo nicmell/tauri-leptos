@@ -17,7 +17,7 @@ In non-dev builds the Tauri lib starts the merged single-origin
 server in-process on an ephemeral local port; the window is created on
 it at runtime, like on desktop (`cfg(dev)` is the shell's only
 compile-time branch). Assets are served
-**straight from the APK per request**: the `SiteAssets` implementation
+**straight from the APK per request**: the tauri-fs asset backend
 opens `resource_dir()/site/<path>` through the fs plugin's Rust API,
 which turns APK assets into real file descriptors (compressed assets
 are transparently copied to cache first — that is the correct path;
@@ -83,5 +83,10 @@ adb logcat -s tauri-leptos
 To point the app at a remote api (e.g. a Pi), set
 `api_base = "http://<host>:3000"` in the device's config
 (app config dir) — the api host needs matching `cors_origins`.
+**Cleartext caveat**: the shipped network-security-config allows plain
+http only to `127.0.0.1`/`localhost`, so an `http://` remote api is
+blocked on device. Use https, or extend
+`res/xml/network_security_config.xml` with a `domain-config` for that
+specific host.
 
 For release signing, follow <https://v2.tauri.app/distribute/sign/android/>.

@@ -78,10 +78,19 @@ impl Ctx {
     /// the shell's `cfg!(dev)`. First launch seeds the default config;
     /// an invalid one is a hard error — the app must not start on a
     /// broken config.
+    ///
+    /// Dev runs honor the app-dir env var (exported by the dev run
+    /// configs), so the shell and the watch share ONE config store —
+    /// `appdir/` — instead of dev edits landing in the platform config.
+    /// (Android dev cannot see the host env and keeps the device's
+    /// platform paths; the defaults there are already correct.)
     #[cfg(feature = "tauri")]
     pub fn from_tauri(app: &tauri::App, dev: bool) -> Result<Self, BootstrapError> {
         let handle = app.handle().clone();
-        let paths = AppPaths::from_tauri(&handle).map_err(BootstrapError::Tauri)?;
+        let paths = match app_dir_from_env().filter(|_| dev) {
+            Some(dir) => AppPaths::from_root(dir),
+            None => AppPaths::from_tauri(&handle).map_err(BootstrapError::Tauri)?,
+        };
         let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
         Ok(Self {
             paths,
@@ -102,6 +111,9 @@ impl Ctx {
                 let site_root = self
                     .config
                     .site_root_resolved(&self.paths.app_config_dir, "target/site");
+                // Pin the root: symlinked or relative roots resolve once
+                // here, not per request.
+                let site_root = site_root.canonicalize().unwrap_or(site_root);
                 if !site_root.join("pkg").exists() {
                     tracing::warn!(
                         site_root = %site_root.display(),

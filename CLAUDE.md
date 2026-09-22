@@ -9,14 +9,17 @@ not part of the build).
 
 - `Cargo.toml` — virtual workspace (resolver 3): shared package fields,
   `workspace.dependencies`, `workspace.lints`, release profile, and the
-  `[[workspace.metadata.leptos]]` block (bin-package = lib-package =
-  tauri-leptos-ui). `.cargo/config.toml` pins `LEPTOS_OUTPUT_NAME`
+  `[[workspace.metadata.leptos]]` block (bin-package = tauri-leptos-cli,
+  lib-package = tauri-leptos-ui). `.cargo/config.toml` pins
+  `LEPTOS_OUTPUT_NAME`
   (asset names at compile time — plain cargo builds need it too).
 - `crates/ui` — Leptos frontend, pure library: lib (feature
   `hydrate`, wasm client) + server module (feature `ssr`). The watch
   server IS the cli (`bin-package`), on :3001 via the committed
   `appdir/config/config.toml`.
-- `crates/app-core` — config/paths/logging/api_router; no Leptos/Tauri.
+- `crates/app-core` — everything server-side: config/paths/logging,
+  api_router, asset backends, `Ctx::router` (depends on ui; feature
+  `tauri` gates the shell-only bits).
 - `crates/app-cli` — the standalone server (+ `config write|validate`).
 - `src-tauri` — shell; non-dev builds embed the in-process server
   (`cfg(dev)` is its only branch).
@@ -33,6 +36,7 @@ cargo check --workspace
 cargo clippy --workspace --all-targets
 cargo clippy -p tauri-leptos-ui --features ssr
 cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
+cargo clippy -p tauri-leptos --features tauri/custom-protocol  # shell release branch
 cargo nextest run --workspace --no-tests=pass
 cargo fmt --all && leptosfmt crates/ui/src
 cargo deny check

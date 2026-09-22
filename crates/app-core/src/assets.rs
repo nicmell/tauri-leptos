@@ -139,18 +139,29 @@ mod tauri_fs {
             let on_miss = on_miss.clone();
             async move {
                 use tower::util::ServiceExt;
-                let rel = req.uri().path().trim_start_matches('/').to_owned();
+                // Percent-decode so encoded names behave like ServeDir.
+                let rel =
+                    percent_encoding::percent_decode_str(req.uri().path().trim_start_matches('/'))
+                        .decode_utf8_lossy()
+                        .into_owned();
                 // Only GET/HEAD can be assets; everything else goes to
                 // the pages fallback (server-fn POSTs).
                 let is_read = matches!(
                     *req.method(),
                     axum::http::Method::GET | axum::http::Method::HEAD
                 );
-                match if is_read {
-                    opener(&rel)
+                // The fs plugin opens synchronously (APK fds on
+                // android): keep it off the async workers.
+                let hit = if is_read {
+                    let opener = opener.clone();
+                    let rel = rel.clone();
+                    tokio::task::spawn_blocking(move || opener(&rel))
+                        .await
+                        .unwrap_or_else(|e| Err(io::Error::other(e)))
                 } else {
                     Err(io::Error::other("not an asset"))
-                } {
+                };
+                match hit {
                     Ok(file) => serve_file(&rel, file),
                     Err(_) => on_miss.oneshot(req).await.unwrap_or_else(|e| match e {}),
                 }

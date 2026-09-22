@@ -4616,7 +4616,6 @@ dependencies = [
 name = "tauri-leptos"
 version = "0.1.0"
 dependencies = [
- "axum",
  "tauri",
  "tauri-build",
  "tauri-leptos-core",
@@ -4628,11 +4627,9 @@ dependencies = [
 name = "tauri-leptos-cli"
 version = "0.1.0"
 dependencies = [
- "axum",
  "clap",
  "tauri-leptos-core",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -4644,6 +4641,7 @@ dependencies = [
  "dirs",
  "mime_guess",
  "paranoid-android",
+ "percent-encoding",
  "serde",
  "serde_json",
  "tauri",
@@ -4672,8 +4670,6 @@ dependencies = [
  "leptos_meta",
  "leptos_router",
  "serde",
- "tokio",
- "tower",
  "wasm-bindgen",
 ]
 

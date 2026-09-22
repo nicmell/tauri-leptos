@@ -21,7 +21,6 @@ tauri.workspace = true
 tracing.workspace = true
 tauri-leptos-core = { workspace = true, features = ["tauri"] }
 tauri-plugin-fs.workspace = true
-axum.workspace = true
 
 [lints]
 workspace = true

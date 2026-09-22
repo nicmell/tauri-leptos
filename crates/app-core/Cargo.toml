@@ -11,15 +11,11 @@ tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "ansi"] }
 tracing-appender.workspace = true
 axum.workspace = true
-tower.workspace = true
 tower-http.workspace = true
 axum-reverse-proxy = { workspace = true, optional = true }
 tauri-leptos-ui = { path = "../ui", features = ["ssr"] }
-mime_guess = { workspace = true, optional = true }
-tokio-util = { workspace = true, optional = true }
 tauri = { workspace = true, optional = true }
 tauri-plugin-fs = { workspace = true, optional = true }
-percent-encoding = { workspace = true, optional = true }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -34,11 +30,11 @@ paranoid-android.workspace = true
 tauri = [
   "dep:tauri",
   "dep:tauri-plugin-fs",
-  "dep:percent-encoding",
   "dep:axum-reverse-proxy",
-  "dep:mime_guess",
-  "dep:tokio-util",
 ]
+
+[dev-dependencies]
+tower.workspace = true
 
 [lints]
 workspace = true

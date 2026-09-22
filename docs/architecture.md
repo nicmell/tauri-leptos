@@ -91,17 +91,17 @@ frontend and `api_base = "http://<pi>:3000"`, the Pi running an
 full server with matching
 `cors_origins`.
 
-## Asset backends (core::assets::Assets)
+## Asset serving (ServeDir + a Tauri fs Backend)
 
-Site serving goes through one interface —
-`assets::Assets { into_router(self, on_miss) }` — where `on_miss`
-renders the SSR shell in full builds:
+The router puts the leptos routes and the api in front; the fallback —
+built once at bootstrap into the `Ctx` — serves everything else and
+404s the rest:
 
-| impl | used by | resolution |
-| --- | --- | --- |
-| `StaticAssets::from_site_root(dir)` (core) | cli `site` builds, watch server, tests | `tower_http::ServeDir` (traversal guard, ETag, ranges) |
-| `ProxyAssets(url)` (core) | the shell under `cfg(dev)` | reverse proxy to the watch (`axum-reverse-proxy`) |
-| `StaticAssets::from_tauri_fs(app, base)` (core, feature `tauri`) | desktop bundle AND Android, same code | the resource store via the fs plugin (desktop: real files; Android: APK assets as file descriptors) |
+| host | fallback |
+| --- | --- |
+| standalone (cli, watch) | `tower_http::ServeDir` on the resolved `site_root` |
+| shell release | `ServeDir::with_backend` with `assets::TauriBackend` — the fs plugin opens real files on desktop and APK assets (as fds) on Android; decoding, traversal guard, mime, `ETag` and ranges are ServeDir's, identical everywhere |
+| shell dev | reverse proxy to the watch (`axum-reverse-proxy`) — "empty" assets |
 
 On Android there is no extraction: assets are opened from the APK per
 request (compressed assets are cache-copied by the plugin — correct;

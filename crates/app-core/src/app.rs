@@ -39,7 +39,7 @@ impl App {
 
     /// Build the host-inferred router and serve until ctrl-c/SIGTERM.
     pub async fn start(self) -> Result<(), BoxError> {
-        let router = self.ctx.router(self.addr())?;
+        let router = self.ctx.router(self.addr());
         self.server.serve(router, shutdown_signal()).await?;
         Ok(())
     }

@@ -91,17 +91,17 @@ frontend and `api_base = "http://<pi>:3000"`, the Pi running an
 full server with matching
 `cors_origins`.
 
-## Asset serving (ServeDir + a Tauri fs Backend)
+## Resource serving (`core::resources`, one router per host)
 
-The router puts the leptos routes and the api in front; the fallback —
-built once at bootstrap into the `Ctx` — serves everything else and
-404s the rest:
+The router puts the leptos routes and the api in front; the resource
+router — built once at bootstrap into the `Ctx` (`ctx.resources()`) by
+the `resources` module — serves everything else and 404s the rest:
 
-| host | fallback |
+| host | resources |
 | --- | --- |
 | standalone (cli, watch) | `tower_http::ServeDir` on the resolved `site_root` |
-| shell release | `ServeDir::with_backend` with `assets::TauriBackend` — the fs plugin opens real files on desktop and APK assets (as fds) on Android; decoding, traversal guard, mime, `ETag` and ranges are ServeDir's, identical everywhere |
-| shell dev | reverse proxy to the watch (`axum-reverse-proxy`) — "empty" assets |
+| shell release | `ServeDir::with_backend` with the module's private `TauriBackend` — the fs plugin opens real files on desktop and APK assets (as fds) on Android; decoding, traversal guard, mime, `ETag` and ranges are ServeDir's, identical everywhere |
+| shell dev | reverse proxy to the watch (`axum-reverse-proxy`) |
 
 On Android there is no extraction: assets are opened from the APK per
 request (compressed assets are cache-copied by the plugin — correct;

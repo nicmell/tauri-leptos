@@ -18,7 +18,7 @@ not part of the build).
   server IS the cli (`bin-package`), on :3001 via the committed
   `appdir/config/config.toml`.
 - `crates/app-core` — everything server-side: config/paths/logging,
-  api_router, asset backends, `Ctx::router` (depends on ui; feature
+  api_router, resource routers, `Ctx::router` (depends on ui; feature
   `tauri` gates the shell-only bits).
 - `crates/app-cli` — the standalone server (+ `config write|validate`).
 - `src-tauri` — shell; non-dev builds embed the in-process server

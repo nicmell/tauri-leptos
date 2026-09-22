@@ -99,6 +99,18 @@ impl Ctx {
         })
     }
 
+    /// The address to bind, host-inferred: the configured listen
+    /// address standalone, an ephemeral port in the tauri shell (the
+    /// window is created on the bound address afterwards, so no fixed
+    /// port can ever conflict on the user's machine).
+    pub(crate) fn listen(&self) -> SocketAddr {
+        match &self.host {
+            Host::Standalone => self.config.listen,
+            #[cfg(feature = "tauri")]
+            Host::Tauri { .. } => SocketAddr::from(([127, 0, 0, 1], 0)),
+        }
+    }
+
     /// The one router, host-inferred: the SSR site behind the matching
     /// asset backend (std fs standalone, tauri fs in the shell), or —
     /// in the shell's dev runs — the api with everything else

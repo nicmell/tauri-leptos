@@ -33,11 +33,10 @@ mod server {
                 .then(|| ctx.paths.app_log_dir.clone())
                 .as_deref(),
         ));
-        let serving = tauri_leptos_core::app::app(ctx)
-            .serve(std::net::SocketAddr::from(([127, 0, 0, 1], 0)))?;
-        let addr = serving.addr();
+        let core_app = tauri_leptos_core::app::app(ctx)?;
+        let addr = core_app.addr();
         tauri::async_runtime::spawn(async move {
-            if let Err(e) = serving.await {
+            if let Err(e) = core_app.start().await {
                 tracing::error!("http server exited: {e}");
             }
         });

@@ -150,9 +150,9 @@ first run seeds the defaults, an invalid config refuses to start) and
 runs through `core::app`:
 
 ```rust
-app(ctx)                      // the router is host-inferred: ctx.router(addr)
-    .serve(listen)?           // binds now (port 0 = ephemeral); await it
-    .await                    //   or hand the Serving to a runtime spawn
+let app = app(ctx)?;          // binds now, host-inferred (config listen
+let addr = app.addr();        //   standalone, ephemeral in the shell)
+app.start().await?;           // router + serve; or spawn it on a runtime
 ```
 
 The factory receives the bound address (the site router needs it, and

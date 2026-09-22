@@ -11,9 +11,10 @@ use leptos_axum::{LeptosRoutes, generate_route_list};
 
 use crate::app::{App, shell};
 
-/// The JS/wasm bundle name, fixed at build time by the cargo-leptos
-/// metadata (`name` in `[[workspace.metadata.leptos]]`).
-const OUTPUT_NAME: &str = "tauri-leptos";
+/// The JS/wasm bundle name, read at compile time from the env pinned
+/// in `.cargo/config.toml` (which must match `name` in
+/// `[[workspace.metadata.leptos]]`) — one copy less to keep in sync.
+const OUTPUT_NAME: &str = env!("LEPTOS_OUTPUT_NAME");
 
 /// Leptos options assembled from our own values — the runtime never
 /// depends on cargo-leptos environment variables.

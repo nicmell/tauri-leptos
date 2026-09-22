@@ -12,31 +12,30 @@ use crate::paths::{AppPaths, PathsError, app_dir_from_env};
 
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-/// What the router's fallback serves — the only thing that varies
-/// between hosts, built once at bootstrap (site-root resolution,
-/// warnings and `resource_dir` errors all happen at startup, not per
-/// request or at router build).
+/// Where the app runs — fixed at bootstrap, consumed by
+/// [`Ctx::router`] and [`Ctx::listen`] at runtime (never a compile
+/// branch in the entrypoints).
 #[derive(Clone)]
-enum Frontend {
-    /// The static site bundle (`ServeDir`; Tokio backend standalone,
-    /// the tauri fs backend in the shell).
-    Site(axum::Router),
-    /// The shell's dev runs: everything but the api reverse-proxied
-    /// from the watch server ("empty" assets).
+enum Host {
+    Standalone,
     #[cfg(feature = "tauri")]
-    Proxy(axum::Router),
+    Tauri {
+        dev: bool,
+    },
 }
 
-/// Resolved paths + loaded config + frontend: what every entrypoint
-/// starts from.
+/// Resolved paths + loaded config + host + the asset service: what
+/// every entrypoint starts from.
 #[derive(Clone)]
 pub struct Ctx {
     pub paths: AppPaths,
     pub config: AppConfig,
-    frontend: Frontend,
-    /// Shell binds ephemeral (the window is created on the bound
-    /// address); standalone binds the configured listen.
-    ephemeral_bind: bool,
+    host: Host,
+    /// The static-asset service, built once at bootstrap (`ServeDir`
+    /// over the resolved site root; the tauri fs backend in the
+    /// shell). `None` in the shell's dev runs — "empty" assets, the
+    /// watch serves them through the proxy.
+    assets: Option<axum::Router>,
 }
 
 #[derive(Debug)]
@@ -100,13 +99,12 @@ impl Ctx {
         tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
         let assets =
             tower_http::services::ServeDir::new(site_root).append_index_html_on_directories(false);
-        let frontend = Frontend::Site(axum::Router::new().fallback_service(assets));
 
         Ok(Self {
             paths,
             config,
-            frontend,
-            ephemeral_bind: false,
+            host: Host::Standalone,
+            assets: Some(axum::Router::new().fallback_service(assets)),
         })
     }
 
@@ -131,11 +129,9 @@ impl Ctx {
         };
         let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
 
-        let frontend = if dev {
-            // Api local (state survives frontend rebuilds), everything
-            // else reverse-proxied from the watch server.
-            tracing::info!(upstream = %config.dev.upstream, "dev server (api + proxy to the watch)");
-            Frontend::Proxy(axum_reverse_proxy::ReverseProxy::new("/", &config.dev.upstream).into())
+        let assets = if dev {
+            // "Empty" assets: the watch serves them through the proxy.
+            None
         } else {
             // Relative site_root resolves against resource_dir; absent
             // = the bundled "site" map.
@@ -145,19 +141,19 @@ impl Ctx {
                 .map_err(BootstrapError::Tauri)?;
             let resource_site = config.site_root_resolved(&resource_dir, resource_dir.join("site"));
             tracing::info!(base = %resource_site.display(), "serving bundled resources");
-            let assets = tower_http::services::ServeDir::with_backend(
+            let serve = tower_http::services::ServeDir::with_backend(
                 resource_site,
                 crate::assets::TauriBackend::new(handle),
             )
             .append_index_html_on_directories(false);
-            Frontend::Site(axum::Router::new().fallback_service(assets))
+            Some(axum::Router::new().fallback_service(serve))
         };
 
         Ok(Self {
             paths,
             config,
-            frontend,
-            ephemeral_bind: true,
+            host: Host::Tauri { dev },
+            assets,
         })
     }
 
@@ -166,26 +162,41 @@ impl Ctx {
     /// window is created on the bound address afterwards, so no fixed
     /// port can ever conflict on the user's machine).
     pub(crate) fn listen(&self) -> SocketAddr {
-        if self.ephemeral_bind {
-            SocketAddr::from(([127, 0, 0, 1], 0))
-        } else {
-            self.config.listen
+        match &self.host {
+            Host::Standalone => self.config.listen,
+            #[cfg(feature = "tauri")]
+            Host::Tauri { .. } => SocketAddr::from(([127, 0, 0, 1], 0)),
         }
     }
 
-    /// The one router: the leptos pages + api in front, the
-    /// bootstrap-built frontend (site assets or the dev proxy) as the
-    /// fallback — unknown paths are `ServeDir`s plain 404.
+    /// The static-asset service built at bootstrap, for reuse anywhere
+    /// in the app. `None` in the shell's dev runs.
+    #[must_use]
+    pub fn assets(&self) -> Option<axum::Router> {
+        self.assets.clone()
+    }
+
+    /// The one router, host-inferred: the leptos pages + api in front
+    /// and the bootstrap-built assets as the fallback (`ServeDir`s
+    /// plain 404 on unknown paths) — or, in the shell's dev runs, the
+    /// api with everything else reverse-proxied from the watch.
     pub fn router(&self, addr: SocketAddr) -> axum::Router {
         let api = crate::server::api_router(&self.config.cors_origins);
-        match &self.frontend {
-            Frontend::Site(assets) => {
-                tauri_leptos_ui::server::router(addr, self.config.api_base.clone())
-                    .merge(api)
-                    .fallback_service(assets.clone())
-            }
+        match &self.host {
             #[cfg(feature = "tauri")]
-            Frontend::Proxy(proxy) => api.merge(proxy.clone()),
+            Host::Tauri { dev: true } => {
+                tracing::info!(upstream = %self.config.dev.upstream, "dev server (api + proxy to the watch)");
+                api.merge(axum::Router::from(axum_reverse_proxy::ReverseProxy::new(
+                    "/",
+                    &self.config.dev.upstream,
+                )))
+            }
+            _ => tauri_leptos_ui::server::router(addr, self.config.api_base.clone())
+                .merge(api)
+                .fallback_service(
+                    self.assets()
+                        .expect("site hosts carry the asset service from bootstrap"),
+                ),
         }
     }
 }

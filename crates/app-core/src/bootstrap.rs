@@ -31,11 +31,13 @@ pub struct Ctx {
     pub paths: AppPaths,
     pub config: AppConfig,
     host: Host,
-    /// The static-asset service, built once at bootstrap (`ServeDir`
-    /// over the resolved site root; the tauri fs backend in the
-    /// shell). `None` in the shell's dev runs — "empty" assets, the
-    /// watch serves them through the proxy.
-    assets: Option<axum::Router>,
+    /// The resolved site root (`None` in the shell's dev runs — the
+    /// watch serves the site through the proxy).
+    site_root: Option<PathBuf>,
+    /// The tauri asset backend (`None` outside the shell's release
+    /// runs, where `ServeDir`'s default Tokio backend applies).
+    #[cfg(feature = "tauri")]
+    assets: Option<crate::assets::TauriBackend>,
 }
 
 #[derive(Debug)]
@@ -97,14 +99,13 @@ impl Ctx {
             );
         }
         tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
-        let assets =
-            tower_http::services::ServeDir::new(site_root).append_index_html_on_directories(false);
-
         Ok(Self {
             paths,
             config,
             host: Host::Standalone,
-            assets: Some(axum::Router::new().fallback_service(assets)),
+            site_root: Some(site_root),
+            #[cfg(feature = "tauri")]
+            assets: None,
         })
     }
 
@@ -129,9 +130,9 @@ impl Ctx {
         };
         let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
 
-        let assets = if dev {
-            // "Empty" assets: the watch serves them through the proxy.
-            None
+        let (site_root, assets) = if dev {
+            // "Empty" assets: the watch serves the site through the proxy.
+            (None, None)
         } else {
             // Relative site_root resolves against resource_dir; absent
             // = the bundled "site" map.
@@ -141,18 +142,17 @@ impl Ctx {
                 .map_err(BootstrapError::Tauri)?;
             let resource_site = config.site_root_resolved(&resource_dir, resource_dir.join("site"));
             tracing::info!(base = %resource_site.display(), "serving bundled resources");
-            let serve = tower_http::services::ServeDir::with_backend(
-                resource_site,
-                crate::assets::TauriBackend::new(handle),
+            (
+                Some(resource_site),
+                Some(crate::assets::TauriBackend::new(handle)),
             )
-            .append_index_html_on_directories(false);
-            Some(axum::Router::new().fallback_service(serve))
         };
 
         Ok(Self {
             paths,
             config,
             host: Host::Tauri { dev },
+            site_root,
             assets,
         })
     }
@@ -169,10 +169,12 @@ impl Ctx {
         }
     }
 
-    /// The static-asset service built at bootstrap, for reuse anywhere
-    /// in the app. `None` in the shell's dev runs.
+    /// The tauri asset backend built at bootstrap (the fs plugin over
+    /// the resource store), for reuse anywhere in the app. `None`
+    /// outside the shell's release runs.
+    #[cfg(feature = "tauri")]
     #[must_use]
-    pub fn assets(&self) -> Option<axum::Router> {
+    pub fn assets(&self) -> Option<crate::assets::TauriBackend> {
         self.assets.clone()
     }
 
@@ -191,12 +193,22 @@ impl Ctx {
                     &self.config.dev.upstream,
                 )))
             }
-            _ => tauri_leptos_ui::server::router(addr, self.config.api_base.clone())
-                .merge(api)
-                .fallback_service(
-                    self.assets()
-                        .expect("site hosts carry the asset service from bootstrap"),
-                ),
+            _ => {
+                let site_root = self
+                    .site_root
+                    .clone()
+                    .expect("site hosts carry the resolved site root from bootstrap");
+                let pages = tauri_leptos_ui::server::router(addr, self.config.api_base.clone());
+                #[cfg(feature = "tauri")]
+                if let Some(backend) = self.assets() {
+                    let serve = tower_http::services::ServeDir::with_backend(site_root, backend)
+                        .append_index_html_on_directories(false);
+                    return pages.merge(api).fallback_service(serve);
+                }
+                let serve = tower_http::services::ServeDir::new(site_root)
+                    .append_index_html_on_directories(false);
+                pages.merge(api).fallback_service(serve)
+            }
         }
     }
 }

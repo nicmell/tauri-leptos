@@ -15,7 +15,7 @@ use tokio::io::{AsyncRead, AsyncSeek};
 use tower_http::services::fs::{Backend, File};
 
 #[derive(Clone)]
-pub(crate) struct TauriBackend {
+pub struct TauriBackend {
     app: tauri::AppHandle,
 }
 
@@ -61,7 +61,7 @@ impl Backend for TauriBackend {
     }
 }
 
-pub(crate) struct TauriFile(tokio::fs::File);
+pub struct TauriFile(tokio::fs::File);
 
 impl AsyncRead for TauriFile {
     fn poll_read(

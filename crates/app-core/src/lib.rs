@@ -1,5 +1,5 @@
 pub mod app;
-mod assets;
+pub mod assets;
 pub mod bootstrap;
 pub mod config;
 pub mod logging;

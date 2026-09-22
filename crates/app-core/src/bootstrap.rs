@@ -24,20 +24,17 @@ enum Host {
     },
 }
 
-/// Resolved paths + loaded config + host + the asset service: what
+/// Resolved paths + loaded config + host + the resource router: what
 /// every entrypoint starts from.
 #[derive(Clone)]
 pub struct Ctx {
     pub paths: AppPaths,
     pub config: AppConfig,
     host: Host,
-    /// The resolved site root (`None` in the shell's dev runs — the
-    /// watch serves the site through the proxy).
-    site_root: Option<PathBuf>,
-    /// The tauri asset backend (`None` outside the shell's release
-    /// runs, where `ServeDir`'s default Tokio backend applies).
-    #[cfg(feature = "tauri")]
-    assets: Option<crate::assets::TauriBackend>,
+    /// The host's resource router from [`crate::resources`]: the site
+    /// from disk, from the Tauri resource store, or proxied from the
+    /// watch.
+    resources: axum::Router,
 }
 
 #[derive(Debug)]
@@ -86,26 +83,12 @@ impl Ctx {
         }
         config.log_to_file |= log_to_file;
 
-        // Relative site_root resolves against the config dir; absent =
-        // the cargo-leptos output (dev workspace runs). Pin the root:
-        // symlinked/relative roots resolve once, here.
-        let site_root = config.site_root_resolved(&paths.app_config_dir, "target/site");
-        let site_root = site_root.canonicalize().unwrap_or(site_root);
-        if !site_root.join("pkg").exists() {
-            tracing::warn!(
-                site_root = %site_root.display(),
-                "site root looks empty - run `cargo leptos build --release` \
-                 and install/point `site_root` in the config at it"
-            );
-        }
-        tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
+        let resources = crate::resources::standalone(&config, &paths);
         Ok(Self {
             paths,
             config,
             host: Host::Standalone,
-            site_root: Some(site_root),
-            #[cfg(feature = "tauri")]
-            assets: None,
+            resources,
         })
     }
 
@@ -121,8 +104,6 @@ impl Ctx {
     /// platform paths; the defaults there are already correct.)
     #[cfg(feature = "tauri")]
     pub fn from_tauri(app: &tauri::App, dev: bool) -> Result<Self, BootstrapError> {
-        use tauri::Manager;
-
         let handle = app.handle().clone();
         let paths = match app_dir_from_env().filter(|_| dev) {
             Some(dir) => AppPaths::from_root(dir),
@@ -130,30 +111,17 @@ impl Ctx {
         };
         let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
 
-        let (site_root, assets) = if dev {
-            // "Empty" assets: the watch serves the site through the proxy.
-            (None, None)
+        let resources = if dev {
+            crate::resources::proxy(&config.dev.upstream)
         } else {
-            // Relative site_root resolves against resource_dir; absent
-            // = the bundled "site" map.
-            let resource_dir = handle
-                .path()
-                .resource_dir()
-                .map_err(BootstrapError::Tauri)?;
-            let resource_site = config.site_root_resolved(&resource_dir, resource_dir.join("site"));
-            tracing::info!(base = %resource_site.display(), "serving bundled resources");
-            (
-                Some(resource_site),
-                Some(crate::assets::TauriBackend::new(handle)),
-            )
+            crate::resources::tauri(handle, &config).map_err(BootstrapError::Tauri)?
         };
 
         Ok(Self {
             paths,
             config,
             host: Host::Tauri { dev },
-            site_root,
-            assets,
+            resources,
         })
     }
 
@@ -169,46 +137,27 @@ impl Ctx {
         }
     }
 
-    /// The tauri asset backend built at bootstrap (the fs plugin over
-    /// the resource store), for reuse anywhere in the app. `None`
-    /// outside the shell's release runs.
-    #[cfg(feature = "tauri")]
-    #[must_use]
-    pub fn assets(&self) -> Option<crate::assets::TauriBackend> {
-        self.assets.clone()
+    /// The host's resource router built at bootstrap, for reuse
+    /// anywhere in the app.
+    pub fn resources(&self) -> axum::Router {
+        self.resources.clone()
     }
 
     /// The one router, host-inferred: the leptos pages + api in front
-    /// and the bootstrap-built assets as the fallback (`ServeDir`s
-    /// plain 404 on unknown paths) — or, in the shell's dev runs, the
-    /// api with everything else reverse-proxied from the watch.
+    /// and the bootstrap-built resources as the fallback (a plain 404
+    /// on unknown paths) — or, in the shell's dev runs, the api with
+    /// everything else reverse-proxied from the watch.
     pub fn router(&self, addr: SocketAddr) -> axum::Router {
         let api = crate::server::api_router(&self.config.cors_origins);
         match &self.host {
             #[cfg(feature = "tauri")]
             Host::Tauri { dev: true } => {
                 tracing::info!(upstream = %self.config.dev.upstream, "dev server (api + proxy to the watch)");
-                api.merge(axum::Router::from(axum_reverse_proxy::ReverseProxy::new(
-                    "/",
-                    &self.config.dev.upstream,
-                )))
+                api.merge(self.resources())
             }
-            _ => {
-                let site_root = self
-                    .site_root
-                    .clone()
-                    .expect("site hosts carry the resolved site root from bootstrap");
-                let pages = tauri_leptos_ui::server::router(addr, self.config.api_base.clone());
-                #[cfg(feature = "tauri")]
-                if let Some(backend) = self.assets() {
-                    let serve = tower_http::services::ServeDir::with_backend(site_root, backend)
-                        .append_index_html_on_directories(false);
-                    return pages.merge(api).fallback_service(serve);
-                }
-                let serve = tower_http::services::ServeDir::new(site_root)
-                    .append_index_html_on_directories(false);
-                pages.merge(api).fallback_service(serve)
-            }
+            _ => tauri_leptos_ui::server::router(addr, self.config.api_base.clone())
+                .merge(api)
+                .fallback_service(self.resources()),
         }
     }
 }

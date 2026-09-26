@@ -10,8 +10,9 @@
 # slug, identifier, author, repo) — for callers that cannot quote
 # arguments, such as the cargo-generate hook.
 #
-# --remove-self drops the template plumbing (this script, the
-# cargo-generate hook) once the app no longer needs it.
+# --author defaults to your git config identity; --remove-self drops the
+# template plumbing (this script, the cargo-generate hook) once the app no
+# longer needs it.
 #
 # Only git-tracked text files are touched (binaries are skipped), so
 # `git diff` is the full record of the rename. Outside a git repository
@@ -27,7 +28,8 @@ OLD_APP_DIR_ENV="TAURI_LEPTOS_APP_DIR"
 OLD_AUTHOR="Your Name <you@example.com>"   # workspace authors + deb maintainer
 
 usage() {
-  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+  # The whole comment header, however long it grows.
+  awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
   exit "${1:-0}"
 }
 
@@ -35,7 +37,7 @@ NAME=""      # display name (window title, productName, Android app_name)
 SLUG=""      # kebab-case: crate prefix, binary, /etc/<slug>, site pkg name
 IDENT=""     # bundle identifier
 REPO=""      # checkout directory name in the docs (defaults to the slug)
-AUTHOR=""    # workspace authors + deb maintainer (empty = leave the placeholder)
+AUTHOR=""    # workspace authors + deb maintainer (empty = ask git config)
 ARGS_FILE=""
 DRY_RUN=0
 NO_CARGO=0
@@ -73,6 +75,12 @@ if [ -n "$ARGS_FILE" ]; then
   done < "$ARGS_FILE"
 fi
 
+# No display name given: the slug, title-cased.
+if [ -z "$NAME" ] && [ -n "$SLUG" ]; then
+  NAME="$(printf '%s' "$SLUG" | tr '-' ' ' \
+    | awk '{ for (i = 1; i <= NF; i++) $i = toupper(substr($i, 1, 1)) substr($i, 2) } 1')"
+fi
+
 [ -n "$NAME" ] && [ -n "$SLUG" ] && [ -n "$IDENT" ] || usage 1
 case "$SLUG" in
   [a-z]*) : ;;
@@ -105,6 +113,17 @@ ANDROID_PKG="$(printf '%s' "$IDENT" | tr '-' '_')"
 ANDROID_PATH="$(printf '%s' "$ANDROID_PKG" | tr '.' '/')"
 OLD_ANDROID_PATH="$(printf '%s' "$OLD_ANDROID_PKG" | tr '.' '/')"
 REPO="${REPO:-$SLUG}"
+
+# No author given: the one committing is the obvious answer.
+if [ -z "$AUTHOR" ]; then
+  git_name="$(git config user.name || true)"
+  git_email="$(git config user.email || true)"
+  if [ -n "$git_name" ] && [ -n "$git_email" ]; then
+    AUTHOR="$git_name <$git_email>"
+  elif [ -n "$git_name" ]; then
+    AUTHOR="$git_name"
+  fi
+fi
 
 run() {
   if [ "$DRY_RUN" = 1 ]; then

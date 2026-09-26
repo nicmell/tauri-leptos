@@ -40,7 +40,9 @@ relative, in dev and production alike.
 ## Make it yours
 
 The wizard cargo-leptos already ships (it wraps cargo-generate) prompts
-for the display name, bundle identifier and author:
+for the display name, bundle identifier and author, with defaults derived
+from the project name — and an empty author takes your git config
+identity:
 
 ```bash
 cargo leptos new --git https://github.com/nicmell/tauri-leptos
@@ -60,8 +62,10 @@ the script yourself:
 
 ```bash
 ./scripts/rename-app.sh --name Acme --slug acme-app \
-    --identifier com.acme.app --author "You <you@acme.com>" --remove-self
+    --identifier com.acme.app --remove-self
 ```
+
+(`--author` defaults to your git config identity; pass it to override.)
 
 Either way it renames crates, the bundle identifier, the Android package,
 the deb/systemd paths and the docs in one pass (`--dry-run` shows the plan

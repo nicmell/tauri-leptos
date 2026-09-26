@@ -1,18 +1,13 @@
-//! The API half of the shared HTTP server: sample JSON endpoint, an
-//! in-memory counter, and a WebSocket echo, plus the bind/serve/shutdown
-//! machinery. Frontend routes (leptos SSR) are merged on top by the ui
-//! crate for the single-origin production server.
+//! The API half of the shared HTTP server: the bind/serve/shutdown
+//! machinery, the CORS and WebSocket-origin policy, and the routes of
+//! the [`demo`] module. Frontend routes (leptos SSR) are merged on top
+//! by the ui crate for the single-origin production server.
 
 use std::future::Future;
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 
-use axum::Json;
-use axum::extract::Query;
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use serde::{Deserialize, Serialize};
+mod demo;
 
 pub struct Server {
     listener: std::net::TcpListener,
@@ -70,28 +65,13 @@ pub async fn shutdown_signal() {
 /// The API surface — merged with the SSR routes by the ui crate.
 /// The stateful API half. `cors_origins` allows remote frontends to
 /// call `/api` cross-origin (empty = same-origin only, no layer;
-/// `"*"` = any origin). Web sockets are not subject to CORS.
+/// `"*"` = any origin). Web sockets are not subject to CORS, they go
+/// through [`origin_allowed`] instead.
+///
+/// The routes are the demo ones: an app starts from
+/// `axum::Router::new()` here and deletes `server/demo.rs`.
 pub fn api_router(cors_origins: &[String]) -> axum::Router {
-    let ws_origins: Vec<String> = cors_origins.to_vec();
-    let router = axum::Router::new()
-        .route("/api/hello", get(hello))
-        // POST: the demo counter mutates state.
-        .route("/api/counter", axum::routing::post(counter))
-        .route(
-            "/ws",
-            get(ws_upgrade).route_layer(axum::middleware::from_fn(
-                move |req: axum::extract::Request, next: axum::middleware::Next| {
-                    let allowed = ws_origins.clone();
-                    async move {
-                        if origin_allowed(req.headers(), &allowed) {
-                            next.run(req).await
-                        } else {
-                            axum::http::StatusCode::FORBIDDEN.into_response()
-                        }
-                    }
-                },
-            )),
-        );
+    let router = demo::routes(cors_origins.to_vec());
     if cors_origins.is_empty() {
         return router;
     }
@@ -108,37 +88,13 @@ pub fn api_router(cors_origins: &[String]) -> axum::Router {
     )
 }
 
-#[derive(Deserialize)]
-struct HelloParams {
-    name: Option<String>,
-}
-
-#[derive(Serialize)]
-struct HelloResponse {
-    message: String,
-}
-
-async fn hello(Query(params): Query<HelloParams>) -> Json<HelloResponse> {
-    let name = params.name.unwrap_or_else(|| "world".to_owned());
-    Json(HelloResponse {
-        message: format!("Hello, {name}! You've been greeted from Rust!"),
-    })
-}
-
-/// In-memory state marker: proves across dev rebuilds that the API server
-/// process was not restarted (the count survives UI changes).
-async fn counter() -> Json<serde_json::Value> {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNT: AtomicU64 = AtomicU64::new(0);
-    let value = COUNT.fetch_add(1, Ordering::Relaxed) + 1;
-    Json(serde_json::json!({ "count": value }))
-}
-
 /// Browsers always allow cross-origin `WebSocket`s, so the server must
-/// check the `Origin` itself: same-origin (Origin host == Host header)
-/// or one of `cors_origins` (`"*"` = any). Requests without an Origin
-/// (non-browser clients) pass.
-fn origin_allowed(headers: &axum::http::HeaderMap, allowed: &[String]) -> bool {
+/// check the `Origin` itself — wrap every ws route in a `route_layer`
+/// that calls this, as [`demo`] does. Same-origin (Origin host == Host
+/// header): same-origin (Origin host == Host header)
+/// or one of `cors_origins` (`"*"` = any) passes; so does a request
+/// without an Origin (non-browser clients).
+pub fn origin_allowed(headers: &axum::http::HeaderMap, allowed: &[String]) -> bool {
     let Some(origin) = headers
         .get(axum::http::header::ORIGIN)
         .and_then(|v| v.to_str().ok())
@@ -156,22 +112,4 @@ fn origin_allowed(headers: &axum::http::HeaderMap, allowed: &[String]) -> bool {
         .get(axum::http::header::HOST)
         .and_then(|v| v.to_str().ok())
         .is_some_and(|host| host == origin_host)
-}
-
-async fn ws_upgrade(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(echo)
-}
-
-async fn echo(mut socket: WebSocket) {
-    while let Some(Ok(message)) = socket.recv().await {
-        match message {
-            Message::Text(_) | Message::Binary(_) => {
-                if socket.send(message).await.is_err() {
-                    break;
-                }
-            }
-            Message::Close(_) => break,
-            _ => {}
-        }
-    }
 }

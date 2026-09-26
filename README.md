@@ -36,6 +36,26 @@ and the origin is a plain http server — open the URL logged at startup
 in a browser for browser work. Everything is same-origin and
 relative, in dev and production alike.
 
+## Make it yours
+
+```bash
+./scripts/rename-app.sh --name Acme --slug acme-app --identifier com.acme.app
+```
+
+That renames crates, the bundle identifier, the Android package, the
+deb/systemd paths and the docs in one pass. Then drop the demo and write
+your own:
+
+| Delete | Then |
+| --- | --- |
+| `crates/app-core/src/server/demo.rs` | start `api_router` from `axum::Router::new()` |
+| `crates/ui/src/demo.rs` | point the route in `crates/ui/src/app.rs` at your page |
+| `crates/ui/assets/public/*.svg` | your own assets (`styles.css` stays) |
+| the demo assertions in `crates/app-core/tests/` | tests for your routes |
+
+Also `cargo tauri icon <your.png>` for the icon set, and replace
+`LICENSE` with your app's.
+
 ## Production build
 
 ```bash

@@ -1,4 +1,6 @@
+pub mod api;
 pub mod app;
+mod demo;
 #[cfg(feature = "ssr")]
 pub mod server;
 

@@ -20,6 +20,10 @@ demo endpoints and page.
 - `crates/app-core` — everything server-side: config/paths/logging,
   api_router, resource routers, `Ctx::router` (depends on ui; feature
   `tauri` gates the shell-only bits).
+- Demo code is confined to two files: `crates/app-core/src/server/demo.rs`
+  (routes) and `crates/ui/src/demo.rs` (page + server fn). Deleting them
+  is the documented way to start an app (README, "Make it yours"); keep
+  new app code out of them.
 - `crates/app-cli` — the standalone server (+ `config write|validate`).
 - `src-tauri` — shell; non-dev builds embed the in-process server
   (`cfg(dev)` is its only branch).

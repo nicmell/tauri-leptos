@@ -87,7 +87,7 @@ needs `cors_origins` covering the frontend's origin — the tauri
 shell's origin is ephemeral, so a device pointing at a remote api
 typically needs `"*"` (an explicit, documented choice). WebSockets
 are not subject to CORS. Example: the android app with the embedded
-frontend and `api_base = "http://<pi>:3000"`, the Pi running an
+frontend and `api_base = "http://<host>:3000"`, that host running an
 full server with matching
 `cors_origins`.
 
@@ -185,7 +185,7 @@ cargo tauri build            # production bundle (embedded frontend)
 cargo leptos build --release # site for plain-cargo servers
 ```
 
-## Standalone / Raspberry Pi
+## Standalone / systemd
 
 `tauri-leptos-cli serve` (no flags) runs the single-origin server
 standalone: site and bind from the config — the deb ships
@@ -195,7 +195,7 @@ bare `serve`. A remote api server is the same
 full server with `cors_origins` set. Packaging:
 `scripts/build-deb.sh` → deb with binary+site+system unit
 (enable/start on install). See
-[install/raspberry-pi.md](install/raspberry-pi.md).
+[install/linux-systemd.md](install/linux-systemd.md).
 
 ## Out of scope for now
 

@@ -108,13 +108,13 @@ async fn unknown_paths_are_a_plain_404() {
 #[tokio::test]
 async fn configured_api_base_is_injected() {
     let config = AppConfig {
-        api_base: Some("http://pi.local:3000".to_owned()),
+        api_base: Some("http://api.example:3000".to_owned()),
         ..site_config("target/site")
     };
     let app = ctx(&config).router(addr());
     let (status, _, html) = get(app, "/").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(html.contains(r#"<meta name="api-base" content="http://pi.local:3000">"#));
+    assert!(html.contains(r#"<meta name="api-base" content="http://api.example:3000">"#));
 }
 
 // ServeDir carries its own traversal guard; escaping the root must

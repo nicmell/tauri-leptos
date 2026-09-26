@@ -23,7 +23,7 @@ pub struct AppConfig {
     pub site_root: Option<PathBuf>,
     /// Origin the client sends api/ws requests to. `None` = same
     /// origin. Set it when the api lives on another host (e.g. the
-    /// app on a device, the api on a Pi) — that host then needs the
+    /// app on a device, the api on a server) — that host then needs the
     /// matching `cors_origins`.
     pub api_base: Option<String>,
     /// Origins allowed to call `/api` cross-origin (remote frontends).

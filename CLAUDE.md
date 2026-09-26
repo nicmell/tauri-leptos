@@ -31,7 +31,7 @@ cargo tauri dev                                 # dev (watch spawned; browser = 
 cargo tauri build                               # production bundle
 cargo leptos build                              # dev site + watch (cli) binary
 cargo leptos build --release                    # site for plain-cargo servers
-./scripts/build-deb.sh                          # Pi deb (binary+site+unit)
+./scripts/build-deb.sh                          # Linux deb (binary+site+unit)
 cargo check --workspace
 cargo clippy --workspace --all-targets
 cargo clippy -p tauri-leptos-ui --features ssr
@@ -52,7 +52,7 @@ bacon                                           # watch loop (c=clippy w=wasm t=
   .rs files automatically.
 - Dependencies: versions only in `workspace.dependencies`; members use
   `dep.workspace = true`. New dependencies must be ≥ 7 days old.
-- `serve` = the single-origin server (systemd/Pi); bind from
+- `serve` = the single-origin server (systemd deb); bind from
   `--host`/`--port` over the configured `listen`.
 - Server functions stay stateless by convention and live under `/fn`
   (`server-fn-prefix` + the `SERVER_FN_PREFIX` env pin must match);

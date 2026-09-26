@@ -40,7 +40,7 @@ relative, in dev and production alike.
 
 ```bash
 cargo tauri build                 # desktop bundle
-./scripts/build-deb.sh            # Raspberry Pi deb (binary + site + systemd unit)
+./scripts/build-deb.sh            # Linux deb (binary + site + systemd unit)
 cargo tauri android build         # Android APK (server in-process, assets from the APK)
 ```
 

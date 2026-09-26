@@ -39,25 +39,32 @@ relative, in dev and production alike.
 
 ## Make it yours
 
-Straight into a new project, prompting for the display name, identifier
-and author:
+The wizard cargo-leptos already ships (it wraps cargo-generate) prompts
+for the display name, bundle identifier and author:
+
+```bash
+cargo leptos new --git https://github.com/nicmell/tauri-leptos
+```
+
+It then asks to run `scripts/rename-app.sh`: that command *is* the
+rename — answer yes. `cargo generate` takes the same template and can
+skip the question with `--allow-commands`:
 
 ```bash
 cargo generate --git https://github.com/nicmell/tauri-leptos \
     --name acme-app --allow-commands
 ```
 
-`--allow-commands` lets the template's hook run the rename script (without
-it, cargo-generate asks before running it). In a clone, run the same
-script yourself:
+In a clone — or in a repo made with GitHub's "Use this template" — run
+the script yourself:
 
 ```bash
 ./scripts/rename-app.sh --name Acme --slug acme-app \
     --identifier com.acme.app --author "You <you@acme.com>" --remove-self
 ```
 
-Either way it renames crates, the bundle identifier, the Android package, the
-deb/systemd paths and the docs in one pass (`--dry-run` shows the plan
+Either way it renames crates, the bundle identifier, the Android package,
+the deb/systemd paths and the docs in one pass (`--dry-run` shows the plan
 first; `--remove-self` drops the script once your app no longer needs
 it). Then drop the demo and write your own:
 

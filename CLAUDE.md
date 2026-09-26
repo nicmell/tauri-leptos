@@ -79,9 +79,11 @@ bacon                                           # watch loop (c=clippy w=wasm t=
 - Template plumbing: `scripts/rename-app.sh` (the rename),
   `scripts/generate.rhai` + `cargo-generate.toml` (the cargo-generate
   hook, which only forwards the prompted values to that script).
-  `--remove-self` deletes all three. The hook does every substitution, so
+  `--remove-self` deletes all three. No liquid placeholders anywhere:
+  they would stop the template from being a buildable app, which is the
+  point of it. The hook does every substitution instead, so
   `cargo-generate.toml` switches liquid templating off for all files
-  (`exclude`) — keep it that way and no file has to avoid liquid tags.
+  (`exclude`) — keep it that way.
   CI runs both paths: a generate smoke and a rename smoke.
 - One feature per commit; every commit leaves the workspace green
   (`cargo check` + `cargo leptos build`).

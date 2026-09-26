@@ -1,15 +1,17 @@
-# The tauri-leptos app server: the fourth unit of the Pi audio stack
-# (see rpi/ for jackd/scsynth/strudeldirt). Runs as the same regular
-# user as scsynth so the future SHM scope access shares ownership —
-# edit User/Group to match your machine, and remember
-# `sudo loginctl enable-linger <user>` (RemoveIPC gotcha, rpi/raspberry-pi.md).
+# The app server as a system service. cargo-deb installs this unit and
+# enables + starts it; see docs/install/linux-systemd.md.
 [Unit]
 Description=tauri-leptos server
-After=network.target scsynth.service
+After=network.target
 
 [Service]
-User=nick
-Group=audio
+# No account to create at install time: systemd allocates a transient
+# user and owns the state/cache/log directories below for it. The
+# configuration directory stays root-owned, which is enough here because
+# the deb ships config.toml — an app that must write its own config (or
+# needs a fixed uid, or shared group access to a device) wants
+# User=/Group= instead.
+DynamicUser=yes
 # Bind/site come from /etc/tauri-leptos/config.toml (shipped by the deb).
 ExecStart=/usr/bin/tauri-leptos-cli serve
 # systemd owns /etc/tauri-leptos, /var/lib/tauri-leptos, ... and exports

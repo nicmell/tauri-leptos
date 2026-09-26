@@ -1,9 +1,9 @@
 pub mod app;
-mod assets;
 pub mod bootstrap;
 pub mod config;
 pub mod logging;
 pub mod paths;
+mod resources;
 pub mod server;
 
 /// Bundle identifier, kept in sync with `src-tauri/tauri.conf.json`.

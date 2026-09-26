@@ -79,7 +79,10 @@ default), and the client sends fetch/WS there. **Server functions are
 NOT covered**: they always call the origin that rendered the page —
 they are part of the frontend server, not of the remote api. Put
 remote-capable logic behind `/api`, keep server functions for
-page-local concerns. The api host then
+page-local concerns. To make the contract visible in the URL — and
+route shadowing impossible — server functions live under **`/fn`**
+(`server-fn-prefix` in the leptos metadata + the `SERVER_FN_PREFIX`
+pin in `.cargo/config.toml`, which must match). The api host then
 needs `cors_origins` covering the frontend's origin — the tauri
 shell's origin is ephemeral, so a device pointing at a remote api
 typically needs `"*"` (an explicit, documented choice). WebSockets
@@ -88,17 +91,17 @@ frontend and `api_base = "http://<pi>:3000"`, the Pi running an
 full server with matching
 `cors_origins`.
 
-## Asset backends (core::assets::Assets)
+## Resource serving (`core::resources`, one router per host)
 
-Site serving goes through one interface —
-`assets::Assets { into_router(self, on_miss) }` — where `on_miss`
-renders the SSR shell in full builds:
+The router puts the leptos routes and the api in front; the resource
+router — built once at bootstrap into the `Ctx` (`ctx.resources()`) by
+the `resources` module — serves everything else and 404s the rest:
 
-| impl | used by | resolution |
-| --- | --- | --- |
-| `StaticAssets::from_site_root(dir)` (core) | cli `site` builds, watch server, tests | `tower_http::ServeDir` (traversal guard, ETag, ranges) |
-| `ProxyAssets(url)` (core) | the shell under `cfg(dev)` | reverse proxy to the watch (`axum-reverse-proxy`) |
-| `StaticAssets::from_tauri_fs(app, base)` (core, feature `tauri`) | desktop bundle AND Android, same code | the resource store via the fs plugin (desktop: real files; Android: APK assets as file descriptors) |
+| host | resources |
+| --- | --- |
+| standalone (cli, watch) | `tower_http::ServeDir` on the resolved `site_root` |
+| shell release | `ServeDir::with_backend` with the module's private `TauriBackend` — the fs plugin opens real files on desktop and APK assets (as fds) on Android; decoding, traversal guard, mime, `ETag` and ranges are ServeDir's, identical everywhere |
+| shell dev | reverse proxy to the watch (`axum-reverse-proxy`) |
 
 On Android there is no extraction: assets are opened from the APK per
 request (compressed assets are cache-copied by the plugin — correct;
@@ -147,9 +150,9 @@ first run seeds the defaults, an invalid config refuses to start) and
 runs through `core::app`:
 
 ```rust
-app(ctx)                      // the router is host-inferred: ctx.router(addr)
-    .serve(listen)?           // binds now (port 0 = ephemeral); await it
-    .await                    //   or hand the Serving to a runtime spawn
+let app = app(ctx)?;          // binds now, host-inferred (config listen
+let addr = app.addr();        //   standalone, ephemeral in the shell)
+app.start().await?;           // router + serve; or spawn it on a runtime
 ```
 
 The factory receives the bound address (the site router needs it, and

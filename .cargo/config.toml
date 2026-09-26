@@ -4,3 +4,7 @@
 # sets it for its own builds; pinning it here keeps plain cargo builds
 # (the tauri shell with the ssr feature) consistent.
 LEPTOS_OUTPUT_NAME = "tauri-leptos"
+# Server-fn route prefix, compiled into client and server (must match
+# server-fn-prefix in the leptos metadata): /fn = frontend-local RPC,
+# distinct from the shareable /api surface — no route shadowing.
+SERVER_FN_PREFIX = "/fn"

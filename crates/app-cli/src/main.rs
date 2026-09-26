@@ -7,7 +7,7 @@
 //! server — open it in a browser for browser work.
 
 use std::error::Error;
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -85,15 +85,15 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
             log_to_file,
         } => {
             // Invalid config is a hard error: systemd must see the failure.
-            let ctx = Ctx::resolve(cli.app_dir)?;
-            let listen = SocketAddr::new(
-                host.unwrap_or_else(|| ctx.config.listen.ip()),
-                port.unwrap_or_else(|| ctx.config.listen.port()),
+            let ctx = Ctx::from_cli(cli.app_dir, host, port, log_to_file)?;
+            let _log_guard = logging::init(
+                ctx.config
+                    .log_to_file
+                    .then(|| ctx.paths.app_log_dir.clone())
+                    .as_deref(),
             );
-            let log_to_file = log_to_file || ctx.config.log_to_file;
-            let _log_guard = logging::init(log_to_file.then_some(ctx.paths.app_log_dir.as_path()));
 
-            tauri_leptos_core::app::app(ctx).serve(listen)?.await?;
+            tauri_leptos_core::app::app(ctx)?.start().await?;
         }
         Command::Config { action } => {
             let paths =

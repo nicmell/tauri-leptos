@@ -7,35 +7,34 @@ use std::fmt;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-#[cfg(feature = "tauri")]
-use crate::assets::ProxyAssets;
-use crate::assets::{Assets, StaticAssets};
 use crate::config::{AppConfig, ConfigError};
 use crate::paths::{AppPaths, PathsError, app_dir_from_env};
 
 pub type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-/// Where the app runs — the only thing that varies between the
-/// standalone server and the tauri shell, fixed at bootstrap and
-/// consumed by [`Ctx::router`] at runtime (never a compile branch in
-/// the entrypoints).
-#[derive(Debug, Clone)]
+/// Where the app runs — fixed at bootstrap, consumed by
+/// [`Ctx::router`] and [`Ctx::listen`] at runtime (never a compile
+/// branch in the entrypoints).
+#[derive(Clone)]
 enum Host {
     Standalone,
     #[cfg(feature = "tauri")]
     Tauri {
-        app: tauri::AppHandle,
         dev: bool,
     },
 }
 
-/// Resolved paths + loaded config + host: what every entrypoint
-/// starts from.
-#[derive(Debug, Clone)]
+/// Resolved paths + loaded config + host + the resource router: what
+/// every entrypoint starts from.
+#[derive(Clone)]
 pub struct Ctx {
     pub paths: AppPaths,
     pub config: AppConfig,
     host: Host,
+    /// The host's resource router from [`crate::resources`]: the site
+    /// from disk, from the Tauri resource store, or proxied from the
+    /// watch.
+    resources: axum::Router,
 }
 
 #[derive(Debug)]
@@ -60,17 +59,36 @@ impl fmt::Display for BootstrapError {
 impl std::error::Error for BootstrapError {}
 
 impl Ctx {
-    /// Standalone bootstrap (cli, watch server). `app_dir` = the CLI
-    /// flag; the app-dir env var is the fallback.
-    pub fn resolve(app_dir: Option<PathBuf>) -> Result<Self, BootstrapError> {
+    /// Standalone bootstrap from the command-line parameters (the
+    /// watch server runs the bare binary: everything `None`/`false`).
+    /// `app_dir` falls back to the app-dir env var; `host`/`port`
+    /// override the configured bind, `log_to_file` ORs into the
+    /// config — the flags land in the [`AppConfig`], no setters at
+    /// the call site.
+    pub fn from_cli(
+        app_dir: Option<PathBuf>,
+        host: Option<std::net::IpAddr>,
+        port: Option<u16>,
+        log_to_file: bool,
+    ) -> Result<Self, BootstrapError> {
         let app_dir = app_dir.or_else(app_dir_from_env);
         let paths =
             AppPaths::resolve_standalone(app_dir.as_deref()).map_err(BootstrapError::Paths)?;
-        let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
+        let mut config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
+        if let Some(host) = host {
+            config.listen.set_ip(host);
+        }
+        if let Some(port) = port {
+            config.listen.set_port(port);
+        }
+        config.log_to_file |= log_to_file;
+
+        let resources = crate::resources::standalone(&config, &paths);
         Ok(Self {
             paths,
             config,
             host: Host::Standalone,
+            resources,
         })
     }
 
@@ -92,78 +110,55 @@ impl Ctx {
             None => AppPaths::from_tauri(&handle).map_err(BootstrapError::Tauri)?,
         };
         let config = AppConfig::load(&paths).map_err(BootstrapError::Config)?;
+
+        let resources = if dev {
+            crate::resources::proxy(&config.dev.upstream)
+        } else {
+            crate::resources::tauri(handle, &config).map_err(BootstrapError::Tauri)?
+        };
+
         Ok(Self {
             paths,
             config,
-            host: Host::Tauri { app: handle, dev },
+            host: Host::Tauri { dev },
+            resources,
         })
     }
 
-    /// The one router, host-inferred: the SSR site behind the matching
-    /// asset backend (std fs standalone, tauri fs in the shell), or —
-    /// in the shell's dev runs — the api with everything else
-    /// reverse-proxied from the watch server.
-    pub fn router(&self, addr: SocketAddr) -> Result<axum::Router, BoxError> {
+    /// The address to bind, host-inferred: the configured listen
+    /// address standalone, an ephemeral port in the tauri shell (the
+    /// window is created on the bound address afterwards, so no fixed
+    /// port can ever conflict on the user's machine).
+    pub(crate) fn listen(&self) -> SocketAddr {
         match &self.host {
-            Host::Standalone => {
-                // Relative site_root resolves against the config dir;
-                // absent = the cargo-leptos output (dev workspace runs).
-                let site_root = self
-                    .config
-                    .site_root_resolved(&self.paths.app_config_dir, "target/site");
-                // Pin the root: symlinked or relative roots resolve once
-                // here, not per request.
-                let site_root = site_root.canonicalize().unwrap_or(site_root);
-                if !site_root.join("pkg").exists() {
-                    tracing::warn!(
-                        site_root = %site_root.display(),
-                        "site root looks empty - run `cargo leptos build --release` \
-                         and install/point `site_root` in the config at it"
-                    );
-                }
-                tracing::info!(site_root = %site_root.display(), "single-origin server (ssr + api)");
-                Ok(self.site(addr, StaticAssets::from_site_root(site_root)))
-            }
+            Host::Standalone => self.config.listen,
             #[cfg(feature = "tauri")]
-            Host::Tauri { dev: true, .. } => {
-                tracing::info!(
-                    upstream = %self.config.dev.upstream,
-                    "dev server (api + proxy to the watch)"
-                );
-                Ok(self.compose(
-                    ProxyAssets(self.config.dev.upstream.clone()),
-                    axum::Router::new(),
-                ))
-            }
-            #[cfg(feature = "tauri")]
-            Host::Tauri { app, .. } => {
-                use tauri::Manager;
-                // Relative site_root resolves against resource_dir;
-                // absent = the bundled "site" map.
-                let resource_dir = app.path().resource_dir()?;
-                let resource_site = self
-                    .config
-                    .site_root_resolved(&resource_dir, resource_dir.join("site"));
-                tracing::info!(base = %resource_site.display(), "serving bundled resources");
-                Ok(self.site(
-                    addr,
-                    StaticAssets::from_tauri_fs(app.clone(), resource_site),
-                ))
-            }
+            Host::Tauri { .. } => SocketAddr::from(([127, 0, 0, 1], 0)),
         }
     }
 
-    fn site(&self, addr: SocketAddr, assets: impl Assets) -> axum::Router {
-        self.compose(
-            assets,
-            tauri_leptos_ui::server::router(addr, self.config.api_base.clone()),
-        )
+    /// The host's resource router built at bootstrap, for reuse
+    /// anywhere in the app.
+    pub fn resources(&self) -> axum::Router {
+        self.resources.clone()
     }
 
-    fn compose(&self, assets: impl Assets, pages: axum::Router) -> axum::Router {
-        assets
-            .into_router(pages)
-            .merge(crate::server::api_router(&self.config.cors_origins))
+    /// The one router, host-inferred: the leptos pages + api in front
+    /// and the bootstrap-built resources as the fallback (a plain 404
+    /// on unknown paths) — or, in the shell's dev runs, the api with
+    /// everything else reverse-proxied from the watch.
+    pub fn router(&self, addr: SocketAddr) -> axum::Router {
+        let api = crate::server::api_router(&self.config.cors_origins);
+        match &self.host {
+            #[cfg(feature = "tauri")]
+            Host::Tauri { dev: true } => {
+                tracing::info!(upstream = %self.config.dev.upstream, "dev server (api + proxy to the watch)");
+                api.merge(self.resources())
+            }
+            _ => tauri_leptos_ui::server::router(addr, self.config.api_base.clone())
+                .merge(api)
+                .fallback_service(self.resources()),
+        }
     }
 }
 
@@ -179,7 +174,7 @@ mod tests {
         let paths = AppPaths::from_root(&dir);
         std::fs::create_dir_all(&paths.app_config_dir).expect("mkdir");
         std::fs::write(paths.app_config_dir.join(CONFIG_FILE), "nonsense = true\n").expect("write");
-        assert!(Ctx::resolve(Some(dir.clone())).is_err());
+        assert!(Ctx::from_cli(Some(dir.clone()), None, None, false).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -187,7 +182,7 @@ mod tests {
     fn first_run_seeds_and_starts() {
         let dir = std::env::temp_dir().join(format!("tl-boot-seed-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let ctx = Ctx::resolve(Some(dir.clone())).expect("seeds and starts");
+        let ctx = Ctx::from_cli(Some(dir.clone()), None, None, false).expect("seeds and starts");
         assert_eq!(ctx.config, AppConfig::default());
         assert!(ctx.paths.app_config_dir.join(CONFIG_FILE).is_file());
         let _ = std::fs::remove_dir_all(&dir);

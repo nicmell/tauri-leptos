@@ -14,7 +14,7 @@ tauri-leptos-core.workspace = true
 workspace = true
 
 [package.metadata.deb]
-maintainer = "nicmell <nicola.melloni@slesh.it>"
+maintainer = "Your Name <you@example.com>"
 extended-description = "tauri-leptos server (SSR frontend + API) for systemd deployments"
 maintainer-scripts = "debian/"
 assets = [

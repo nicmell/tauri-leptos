@@ -6,7 +6,7 @@ use tower::ServiceExt;
 async fn hello_greets_by_name() {
     let response = tauri_leptos_core::server::api_router(&[])
         .oneshot(
-            Request::get("/api/hello?name=Nick")
+            Request::get("/api/hello?name=Ada")
                 .body(Body::empty())
                 .expect("valid request"),
         )
@@ -19,7 +19,7 @@ async fn hello_greets_by_name() {
     let json: serde_json::Value = serde_json::from_slice(&body).expect("json body");
     assert_eq!(
         json["message"],
-        "Hello, Nick! You've been greeted from Rust!"
+        "Hello, Ada! You've been greeted from Rust!"
     );
 }
 

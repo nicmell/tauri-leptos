@@ -1,4 +1,4 @@
-package com.nick.tauri_leptos
+package com.example.tauri_leptos
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

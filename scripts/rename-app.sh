@@ -2,8 +2,8 @@
 # Rename this template to a real app: crate names, Rust paths, bundle
 # identifier, systemd/deb paths, Android package and docs, in one pass.
 #
-#   ./scripts/rename-app.sh --name ScApp --slug sc-app \
-#       --identifier com.nicmell.sc.app [--repo sc-app3] [--dry-run]
+#   ./scripts/rename-app.sh --name Acme --slug acme-app \
+#       --identifier com.acme.app [--repo acme-app] [--dry-run]
 #
 # Only git-tracked text files are touched (binaries are skipped), so
 # `git diff` is the full record of the rename.
@@ -12,8 +12,8 @@ set -euo pipefail
 # The template's own names — the left-hand side of every rename below.
 OLD_SLUG="tauri-leptos"          # crate prefix, leptos output name, deb/etc dirs
 OLD_SNAKE="tauri_leptos"         # Rust module paths, Android theme
-OLD_IDENT="com.nick.tauri-leptos"
-OLD_ANDROID_PKG="com.nick.tauri_leptos"
+OLD_IDENT="com.example.tauri-leptos"
+OLD_ANDROID_PKG="com.example.tauri_leptos"
 OLD_APP_DIR_ENV="TAURI_LEPTOS_APP_DIR"
 
 usage() {
@@ -151,7 +151,7 @@ fi
 
 leftovers=$(git ls-files -- . ':!:scripts/rename-app.sh' \
   | xargs grep -IlF -e "$OLD_SLUG" -e "$OLD_SNAKE" -e "$OLD_APP_DIR_ENV" \
-      -e "${OLD_IDENT%%.*}.nick" 2>/dev/null || true)
+      -e "${OLD_IDENT%.*}" 2>/dev/null || true)
 if [ -n "$leftovers" ]; then
   echo "leftover template names in:" >&2
   printf '  %s\n' $leftovers >&2

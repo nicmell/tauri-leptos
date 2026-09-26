@@ -23,7 +23,7 @@ Bundles land in `target/release/bundle/` (`.app`, `.dmg`).
 
 Launch the app — it serves everything on an ephemeral local port and opens
 the window there. `config.toml` lives in
-`~/Library/Application Support/com.nick.tauri-leptos` (see the config
+`~/Library/Application Support/com.example.tauri-leptos` (see the config
 table in ../architecture.md for the available fields). Logs go to stderr;
 `RUST_LOG` adjusts verbosity.
 

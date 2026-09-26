@@ -1,0 +1,15 @@
+[template]
+# No file here uses liquid syntax — the pre-hook renames everything — so
+# skip substitution entirely. It also keeps cargo-generate from trying to
+# parse binaries (icons, the gradle wrapper jar, stray build output).
+exclude = ["**"]
+
+[hooks]
+# Renaming is the template's own script, not a second mechanism: a
+# generated project and a cloned checkout end up with the same text.
+pre = ["scripts/generate.rhai"]
+
+[placeholders]
+app_name = { type = "string", prompt = "Display name (window title, bundle productName)", default = "Acme" }
+identifier = { type = "string", prompt = "Bundle identifier (reverse DNS)", default = "com.mycompany.acme", regex = "^[a-z][a-z0-9]*(\\.[a-z0-9-]+)+$" }
+author = { type = "string", prompt = "Author (name and email)", default = "Your Name <you@example.com>" }

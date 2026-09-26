@@ -39,12 +39,24 @@ relative, in dev and production alike.
 
 ## Make it yours
 
+Straight into a new project, prompting for the display name, identifier
+and author:
+
+```bash
+cargo generate --git https://github.com/nicmell/tauri-leptos \
+    --name acme-app --allow-commands
+```
+
+`--allow-commands` lets the template's hook run the rename script (without
+it, cargo-generate asks before running it). In a clone, run the same
+script yourself:
+
 ```bash
 ./scripts/rename-app.sh --name Acme --slug acme-app \
     --identifier com.acme.app --author "You <you@acme.com>" --remove-self
 ```
 
-That renames crates, the bundle identifier, the Android package, the
+Either way it renames crates, the bundle identifier, the Android package, the
 deb/systemd paths and the docs in one pass (`--dry-run` shows the plan
 first; `--remove-self` drops the script once your app no longer needs
 it). Then drop the demo and write your own:

@@ -6,8 +6,16 @@
 #       --identifier com.acme.app [--author "A <a@b.c>"] [--repo acme-app] \
 #       [--remove-self] [--dry-run]
 #
+# --args-file FILE reads the same values as `key=value` lines (name,
+# slug, identifier, author, repo) — for callers that cannot quote
+# arguments, such as the cargo-generate hook.
+#
+# --remove-self drops the template plumbing (this script, the
+# cargo-generate hook) once the app no longer needs it.
+#
 # Only git-tracked text files are touched (binaries are skipped), so
-# `git diff` is the full record of the rename.
+# `git diff` is the full record of the rename. Outside a git repository
+# (a cargo-generate hook, an unpacked archive) it falls back to find/mv.
 set -euo pipefail
 
 # The template's own names — the left-hand side of every rename below.
@@ -28,6 +36,7 @@ SLUG=""      # kebab-case: crate prefix, binary, /etc/<slug>, site pkg name
 IDENT=""     # bundle identifier
 REPO=""      # checkout directory name in the docs (defaults to the slug)
 AUTHOR=""    # workspace authors + deb maintainer (empty = leave the placeholder)
+ARGS_FILE=""
 DRY_RUN=0
 NO_CARGO=0
 REMOVE_SELF=0
@@ -40,12 +49,29 @@ while [ $# -gt 0 ]; do
     --repo) REPO="${2:?}"; shift 2 ;;
     --author) AUTHOR="${2:?}"; shift 2 ;;
     --remove-self) REMOVE_SELF=1; shift ;;
+    --args-file) ARGS_FILE="${2:?}"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --no-cargo) NO_CARGO=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown argument: $1" >&2; usage 1 ;;
   esac
 done
+
+if [ -n "$ARGS_FILE" ]; then
+  [ -f "$ARGS_FILE" ] || { echo "no such args file: $ARGS_FILE" >&2; exit 1; }
+  # IFS='=' keeps everything after the first '=' — spaces and <> included.
+  while IFS='=' read -r key value; do
+    case "$key" in
+      name) NAME="$value" ;;
+      slug) SLUG="$value" ;;
+      identifier) IDENT="$value" ;;
+      author) AUTHOR="$value" ;;
+      repo) REPO="$value" ;;
+      ''|'#'*) : ;;
+      *) echo "unknown key in $ARGS_FILE: $key" >&2; exit 1 ;;
+    esac
+  done < "$ARGS_FILE"
+fi
 
 [ -n "$NAME" ] && [ -n "$SLUG" ] && [ -n "$IDENT" ] || usage 1
 case "$SLUG" in
@@ -60,7 +86,17 @@ case "$IDENT" in
   *) echo "--identifier must be reverse-DNS: $IDENT" >&2; exit 1 ;;
 esac
 
-cd "$(git rev-parse --show-toplevel)"
+# A repo whose root holds this script; otherwise plain files (the repo
+# found could be an unrelated one this tree was unpacked into).
+here="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+root="$(git -C "$here" rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "$root" ] && [ -f "$root/scripts/rename-app.sh" ]; then
+  GIT=1
+  cd "$root"
+else
+  GIT=0
+  cd "$here"
+fi
 
 SNAKE="$(printf '%s' "$SLUG" | tr '-' '_')"
 APP_DIR_ENV="$(printf '%s' "$SNAKE" | tr '[:lower:]' '[:upper:]')_DIR"
@@ -93,14 +129,23 @@ replace_in() {
   replace "$from" "$to" "$file"
 }
 
-# Every tracked text file except this script (which holds the old names
-# on purpose) and LICENSE (a copyright grant is not a name to rewrite —
-# replace the file with your app's). grep -I drops the icons and the jar.
+# Every file under version control except this script (which holds the
+# old names on purpose) and LICENSE (a copyright grant is not a name to
+# rewrite — replace the file with your app's).
+candidates() {
+  if [ "$GIT" = 1 ]; then
+    git ls-files -z -- . ':!:scripts/rename-app.sh' ':!:LICENSE'
+  else
+    find . -type f -not -path './.git/*' -not -path './target/*' \
+      -not -path './scripts/rename-app.sh' -not -path './LICENSE' -print0
+  fi
+}
+
+# grep -I drops the icons and the gradle jar.
 files=()
 while IFS= read -r f; do
   files+=("$f")
-done < <(git ls-files -z -- . ':!:scripts/rename-app.sh' ':!:LICENSE' \
-  | xargs -0 grep -Il . 2>/dev/null || true)
+done < <(candidates | xargs -0 grep -Il . 2>/dev/null || true)
 [ "${#files[@]}" -gt 0 ] || { echo "no tracked text files found" >&2; exit 1; }
 
 echo "renaming ${OLD_SLUG} -> ${SLUG} (${NAME}, ${IDENT}), ${#files[@]} files"
@@ -137,7 +182,11 @@ move() {
   [ -e "$from" ] || return 0
   if [ "$from" = "$to" ]; then return 0; fi
   run mkdir -p "$(dirname "$to")"
-  run git mv "$from" "$to"
+  if [ "$GIT" = 1 ]; then
+    run git mv "$from" "$to"
+  else
+    run mv "$from" "$to"
+  fi
 }
 
 move "crates/app-cli/debian/${OLD_SLUG}-cli.service" \
@@ -159,8 +208,8 @@ if [ "$NO_CARGO" = 0 ] && command -v cargo >/dev/null; then
     || echo "note: could not refresh Cargo.lock offline; a build will re-sort it" >&2
 fi
 
-leftovers=$(git ls-files -- . ':!:scripts/rename-app.sh' ':!:LICENSE' \
-  | xargs grep -IlF -e "$OLD_SLUG" -e "$OLD_SNAKE" -e "$OLD_APP_DIR_ENV" \
+leftovers=$(candidates \
+  | xargs -0 grep -IlF -e "$OLD_SLUG" -e "$OLD_SNAKE" -e "$OLD_APP_DIR_ENV" \
       -e "${OLD_IDENT%.*}" 2>/dev/null || true)
 if [ -n "$leftovers" ]; then
   echo "leftover template names in:" >&2
@@ -169,9 +218,14 @@ if [ -n "$leftovers" ]; then
 fi
 
 if [ "$REMOVE_SELF" = 1 ]; then
-  # Last command: the open file descriptor keeps this script readable.
-  git rm -q -f scripts/rename-app.sh
-  echo "removed scripts/rename-app.sh"
+  # Template plumbing, of no use to the generated app. Last command: the
+  # open file descriptor keeps this script readable while it unlinks.
+  plumbing="scripts/rename-app.sh scripts/generate.rhai cargo-generate.toml"
+  for f in $plumbing; do
+    [ -e "$f" ] || continue
+    if [ "$GIT" = 1 ]; then git rm -q -f "$f"; else rm -f "$f"; fi
+    echo "removed $f"
+  done
 fi
 
 cat <<NEXT

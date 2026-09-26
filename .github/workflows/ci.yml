@@ -45,6 +45,26 @@ jobs:
         run: cargo clippy -p tauri-leptos --features tauri/custom-protocol
       - name: tests
         run: cargo nextest run --workspace --no-tests=pass
+      # The other entry point: cargo-generate prompts, its hook runs the
+      # same rename script. Generated from an archive of HEAD so the copy
+      # holds no build output.
+      - name: generate smoke
+        run: |
+          cargo binstall -y cargo-generate
+          mkdir -p "$RUNNER_TEMP/template"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/template"
+          cargo generate --path "$RUNNER_TEMP/template" --name acme-app \
+            --allow-commands --destination "$RUNNER_TEMP" \
+            --define app_name="My Acme App" \
+            --define identifier=com.acme.app --define "author=Ada <ada@acme.com>"
+          cd "$RUNNER_TEMP/acme-app"
+          grep -q '"productName": "My Acme App"' src-tauri/tauri.conf.json
+          grep -q '"identifier": "com.acme.app"' src-tauri/tauri.conf.json
+          grep -q 'Ada <ada@acme.com>' Cargo.toml
+          test ! -e cargo-generate.toml
+          test ! -e scripts/rename-app.sh
+          # LICENSE keeps the template's copyright grant, nothing else may.
+          ! grep -rIl tauri-leptos --exclude-dir=.git --exclude=LICENSE .
       # Last: it rewrites the working tree. Proves the template is still
       # renameable — any new file that reintroduces the old names (or a
       # name the script misses) fails here instead of in someone's app.

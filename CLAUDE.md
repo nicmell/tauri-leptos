@@ -76,6 +76,13 @@ bacon                                           # watch loop (c=clippy w=wasm t=
 - Template licensed MIT-0 (`license` in `workspace.package`): a
   generated app replaces LICENSE with its own. Crates stay
   `publish = false`, cargo-deny ignores them as private.
+- Template plumbing: `scripts/rename-app.sh` (the rename),
+  `scripts/generate.rhai` + `cargo-generate.toml` (the cargo-generate
+  hook, which only forwards the prompted values to that script).
+  `--remove-self` deletes all three. The hook does every substitution, so
+  `cargo-generate.toml` switches liquid templating off for all files
+  (`exclude`) — keep it that way and no file has to avoid liquid tags.
+  CI runs both paths: a generate smoke and a rename smoke.
 - One feature per commit; every commit leaves the workspace green
   (`cargo check` + `cargo leptos build`).
 

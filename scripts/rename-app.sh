@@ -3,7 +3,8 @@
 # identifier, systemd/deb paths, Android package and docs, in one pass.
 #
 #   ./scripts/rename-app.sh --name Acme --slug acme-app \
-#       --identifier com.acme.app [--repo acme-app] [--dry-run]
+#       --identifier com.acme.app [--author "A <a@b.c>"] [--repo acme-app] \
+#       [--remove-self] [--dry-run]
 #
 # Only git-tracked text files are touched (binaries are skipped), so
 # `git diff` is the full record of the rename.
@@ -15,9 +16,10 @@ OLD_SNAKE="tauri_leptos"         # Rust module paths, Android theme
 OLD_IDENT="com.example.tauri-leptos"
 OLD_ANDROID_PKG="com.example.tauri_leptos"
 OLD_APP_DIR_ENV="TAURI_LEPTOS_APP_DIR"
+OLD_AUTHOR="Your Name <you@example.com>"   # workspace authors + deb maintainer
 
 usage() {
-  sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -25,8 +27,10 @@ NAME=""      # display name (window title, productName, Android app_name)
 SLUG=""      # kebab-case: crate prefix, binary, /etc/<slug>, site pkg name
 IDENT=""     # bundle identifier
 REPO=""      # checkout directory name in the docs (defaults to the slug)
+AUTHOR=""    # workspace authors + deb maintainer (empty = leave the placeholder)
 DRY_RUN=0
 NO_CARGO=0
+REMOVE_SELF=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -34,6 +38,8 @@ while [ $# -gt 0 ]; do
     --slug) SLUG="${2:?}"; shift 2 ;;
     --identifier) IDENT="${2:?}"; shift 2 ;;
     --repo) REPO="${2:?}"; shift 2 ;;
+    --author) AUTHOR="${2:?}"; shift 2 ;;
+    --remove-self) REMOVE_SELF=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --no-cargo) NO_CARGO=1; shift ;;
     -h|--help) usage ;;
@@ -87,12 +93,13 @@ replace_in() {
   replace "$from" "$to" "$file"
 }
 
-# Every tracked text file except this script, which holds the old names
-# on purpose. grep -I drops the icons and the gradle jar.
+# Every tracked text file except this script (which holds the old names
+# on purpose) and LICENSE (a copyright grant is not a name to rewrite —
+# replace the file with your app's). grep -I drops the icons and the jar.
 files=()
 while IFS= read -r f; do
   files+=("$f")
-done < <(git ls-files -z -- . ':!:scripts/rename-app.sh' \
+done < <(git ls-files -z -- . ':!:scripts/rename-app.sh' ':!:LICENSE' \
   | xargs -0 grep -Il . 2>/dev/null || true)
 [ "${#files[@]}" -gt 0 ] || { echo "no tracked text files found" >&2; exit 1; }
 
@@ -119,6 +126,9 @@ replace "Theme.${OLD_SNAKE}" "Theme.${SNAKE}"      "${files[@]}"
 replace "cd ${OLD_SLUG}"     "cd ${REPO}"          "${files[@]}"
 replace "$OLD_SNAKE"         "$SNAKE"              "${files[@]}"
 replace "$OLD_SLUG"          "$SLUG"               "${files[@]}"
+if [ -n "$AUTHOR" ]; then
+  replace "$OLD_AUTHOR" "$AUTHOR" "${files[@]}"
+fi
 
 # Paths that carry the old name: the systemd unit and the Android package
 # directories (one under app/, one under buildSrc/).
@@ -149,7 +159,7 @@ if [ "$NO_CARGO" = 0 ] && command -v cargo >/dev/null; then
     || echo "note: could not refresh Cargo.lock offline; a build will re-sort it" >&2
 fi
 
-leftovers=$(git ls-files -- . ':!:scripts/rename-app.sh' \
+leftovers=$(git ls-files -- . ':!:scripts/rename-app.sh' ':!:LICENSE' \
   | xargs grep -IlF -e "$OLD_SLUG" -e "$OLD_SNAKE" -e "$OLD_APP_DIR_ENV" \
       -e "${OLD_IDENT%.*}" 2>/dev/null || true)
 if [ -n "$leftovers" ]; then
@@ -158,4 +168,15 @@ if [ -n "$leftovers" ]; then
   exit 1
 fi
 
-echo "done. review with: git status && git diff"
+if [ "$REMOVE_SELF" = 1 ]; then
+  # Last command: the open file descriptor keeps this script readable.
+  git rm -q -f scripts/rename-app.sh
+  echo "removed scripts/rename-app.sh"
+fi
+
+cat <<NEXT
+done. review with: git status && git diff
+next: delete the demo (crates/app-core/src/server/demo.rs,
+      crates/ui/src/demo.rs — see the README), \`cargo tauri icon <png>\`,
+      and replace LICENSE with your app's.
+NEXT

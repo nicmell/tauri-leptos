@@ -8,11 +8,12 @@ dev/build flow; server functions included.
 Full picture: [docs/architecture.md](docs/architecture.md).
 
 ```
-crates/ui        Leptos app: wasm client (hydrate) + dev frontend-server (ssr bin)
-crates/app-core  config + paths + logging + API router (/api, /ws)
+crates/ui        Leptos app: wasm client (hydrate) + SSR pages and server fns (ssr)
+crates/app-core  config + paths + logging + API router (/api, /ws) + the one router
 crates/app-cli   tauri-leptos-cli: the standalone server + config subcommands
 src-tauri        Tauri shell (non-dev builds embed the in-process server)
 appdir/          repo-local app root for reproducible dev runs
+docs/            architecture, per-platform install, template updates
 ```
 
 ## Prerequisites
@@ -39,12 +40,14 @@ relative, in dev and production alike.
 ## Make it yours
 
 ```bash
-./scripts/rename-app.sh --name Acme --slug acme-app --identifier com.acme.app
+./scripts/rename-app.sh --name Acme --slug acme-app \
+    --identifier com.acme.app --author "You <you@acme.com>" --remove-self
 ```
 
 That renames crates, the bundle identifier, the Android package, the
-deb/systemd paths and the docs in one pass. Then drop the demo and write
-your own:
+deb/systemd paths and the docs in one pass (`--dry-run` shows the plan
+first; `--remove-self` drops the script once your app no longer needs
+it). Then drop the demo and write your own:
 
 | Delete | Then |
 | --- | --- |
@@ -55,6 +58,26 @@ your own:
 
 Also `cargo tauri icon <your.png>` for the icon set, and replace
 `LICENSE` with your app's.
+
+## Where things go
+
+| To add | Edit |
+| --- | --- |
+| a page or route | `crates/ui/src/app.rs` (+ a module per page) |
+| a server function (typed RPC, served under `/fn`) | any `#[server]` fn in `crates/ui` |
+| a stateful endpoint or WebSocket (`/api`, `/ws`) | `api_router` in `crates/app-core/src/server.rs` |
+| a config field | `AppConfig` in `crates/app-core/src/config.rs` |
+| an app directory | `crates/app-core/src/paths.rs` |
+| a Tauri command or plugin | `src-tauri/src/lib.rs` |
+| a cli subcommand | `crates/app-cli/src/main.rs` |
+| styles or static files | `crates/ui/assets/` |
+
+Two rules the layout depends on: `/fn` is frontend-local RPC and `/api`
+is the shareable stateful surface (they must not shadow each other), and
+app-core owns the single router — the entrypoints have no compile-time
+branches. [docs/architecture.md](docs/architecture.md) has the why;
+[docs/template-updates.md](docs/template-updates.md) covers pulling later
+template changes into your app.
 
 ## Production build
 

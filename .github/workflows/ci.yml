@@ -45,6 +45,17 @@ jobs:
         run: cargo clippy -p tauri-leptos --features tauri/custom-protocol
       - name: tests
         run: cargo nextest run --workspace --no-tests=pass
+      # Last: it rewrites the working tree. Proves the template is still
+      # renameable — any new file that reintroduces the old names (or a
+      # name the script misses) fails here instead of in someone's app.
+      - name: rename smoke
+        run: |
+          ./scripts/rename-app.sh --name Acme --slug acme-app \
+            --identifier com.acme.app --author "Ada <ada@acme.com>"
+          cargo leptos build
+          cargo clippy --workspace --all-targets
+          cargo nextest run --workspace --no-tests=pass
+          git checkout -- . && git clean -fdq
 
   deny:
     runs-on: ubuntu-latest

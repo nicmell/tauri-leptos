@@ -83,9 +83,11 @@ bacon                                           # watch loop (c=clippy w=wasm t=
 
 `.github/workflows/ci.yml`: checks (fmt/leptosfmt, clippy native +
 ui-ssr + ui-hydrate-wasm32, nextest incl. ssr tests, cargo leptos
-build) and deny. The checks job installs Tauri's webkit apt deps —
-keep the list in sync with Tauri's Linux prerequisites when bumping
-Tauri.
+build) and deny. The last checks step is the **rename smoke**: it runs
+`scripts/rename-app.sh` and rebuilds — a new file carrying the template
+names, or a name the script does not know, fails there. The checks job
+installs Tauri's webkit apt deps — keep the list in sync with Tauri's
+Linux prerequisites when bumping Tauri.
 
 ## Out of scope right now
 

@@ -62,3 +62,8 @@ bacon                                                  # watch loop (c/w/t/d/s)
 
 CI runs all of the above on every PR. Conventions live in
 [CLAUDE.md](CLAUDE.md); RustRover run configurations in `.run/`.
+
+## License
+
+MIT-0 ([LICENSE](LICENSE)) — no attribution required, so an app
+generated from this template just replaces the file with its own.

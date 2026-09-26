@@ -8,7 +8,7 @@ yanked = "deny"
 unmaintained = "workspace"
 
 [licenses]
-# workspace crates are unpublished and carry no license yet
+# workspace crates are MIT-0 but unpublished: skipped as private
 private = { ignore = true }
 allow = [
   "MIT",

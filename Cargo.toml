@@ -6,6 +6,7 @@ members = ["crates/app-cli", "crates/app-core", "crates/ui", "src-tauri"]
 version = "0.1.0"
 edition = "2024"
 authors = ["Your Name <you@example.com>"]
+license = "MIT-0"
 publish = false
 
 [workspace.lints.rust]

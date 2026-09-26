@@ -69,8 +69,9 @@ bacon                                           # watch loop (c=clippy w=wasm t=
   dependency, 404 on unknown paths).
 - Any server built with plain cargo serves a **release** site — dev
   cargo-leptos builds only hydrate against their own watch.
-- No LICENSE yet: crates are `publish = false`, cargo-deny ignores
-  them as private.
+- Template licensed MIT-0 (`license` in `workspace.package`): a
+  generated app replaces LICENSE with its own. Crates stay
+  `publish = false`, cargo-deny ignores them as private.
 - One feature per commit; every commit leaves the workspace green
   (`cargo check` + `cargo leptos build`).
 

@@ -5,8 +5,8 @@
 #   ./scripts/rename-app.sh --name ScApp --slug sc-app \
 #       --identifier com.nicmell.sc.app [--repo sc-app3] [--dry-run]
 #
-# Only git-tracked text files are touched (the sc-app2 submodule and
-# binaries are skipped), so `git diff` is the full record of the rename.
+# Only git-tracked text files are touched (binaries are skipped), so
+# `git diff` is the full record of the rename.
 set -euo pipefail
 
 # The template's own names — the left-hand side of every rename below.
@@ -92,7 +92,7 @@ replace_in() {
 files=()
 while IFS= read -r f; do
   files+=("$f")
-done < <(git ls-files -z -- . ':!:scripts/rename-app.sh' ':!:sc-app2' \
+done < <(git ls-files -z -- . ':!:scripts/rename-app.sh' \
   | xargs -0 grep -Il . 2>/dev/null || true)
 [ "${#files[@]}" -gt 0 ] || { echo "no tracked text files found" >&2; exit 1; }
 
@@ -149,7 +149,7 @@ if [ "$NO_CARGO" = 0 ] && command -v cargo >/dev/null; then
     || echo "note: could not refresh Cargo.lock offline; a build will re-sort it" >&2
 fi
 
-leftovers=$(git ls-files -- . ':!:scripts/rename-app.sh' ':!:sc-app2' \
+leftovers=$(git ls-files -- . ':!:scripts/rename-app.sh' \
   | xargs grep -IlF -e "$OLD_SLUG" -e "$OLD_SNAKE" -e "$OLD_APP_DIR_ENV" \
       -e "${OLD_IDENT%%.*}.nick" 2>/dev/null || true)
 if [ -n "$leftovers" ]; then

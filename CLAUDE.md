@@ -1,9 +1,9 @@
 # tauri-leptos
 
-Pure-Rust app: Leptos SSR on axum wrapped by a Tauri 2 shell — one
-origin in production, standard Tauri flow. Target of a progressive
-migration from `sc-app2` (git submodule, React/TS — reference only,
-not part of the build).
+Template for pure-Rust apps: Leptos SSR on axum wrapped by a Tauri 2
+shell — one origin in production, standard Tauri flow. A generated app
+renames the template first (`scripts/rename-app.sh`), then replaces the
+demo endpoints and page.
 
 ## Workspace layout
 

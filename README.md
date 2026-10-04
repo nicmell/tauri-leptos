@@ -1,18 +1,13 @@
 # tauri-leptos
 
-A pure-Rust application template: **Leptos SSR** rendered by an **axum**
-server, wrapped by a **Tauri 2** shell. Single origin in production —
-page, API, and WebSocket from one in-process server; standard Tauri
-dev/build flow; server functions included.
+A pure-Rust application template: one Leptos SSR app, served two ways. The cli serves it on an address you choose. The Tauri app serves it inside its window through [tauri-plugin-leptos-ssr](https://github.com/nicmell/tauri-plugin-leptos-ssr).
 
 Full picture: [docs/architecture.md](docs/architecture.md).
 
 ```
-crates/ui        Leptos app: wasm client (hydrate) + SSR pages and server fns (ssr)
-crates/app-core  config + paths + logging + API router (/api, /ws) + the one router
-crates/app-cli   tauri-leptos-cli: the standalone server + config subcommands
-src-tauri        Tauri shell (non-dev builds embed the in-process server)
-appdir/          repo-local app root for reproducible dev runs
+crates/ui        Leptos app: wasm client (feature hydrate), SSR router and server functions (feature ssr)
+crates/app-cli   tauri-leptos-cli: the router plus the site files on --host/--port
+src-tauri        Tauri app: the router behind the plugin's leptos scheme
 docs/            architecture, per-platform install, template updates
 ```
 
@@ -28,108 +23,84 @@ cargo install bacon cargo-nextest cargo-deny leptosfmt
 ## Quick start
 
 ```bash
-cargo tauri dev          # spawns the watch, window on an ephemeral origin
+cargo leptos build    # once: tauri-cli waits only 180 s for the dev server
+cargo tauri dev       # starts cargo leptos watch, then opens the window
 ```
 
-The dev shell serves one origin (api in-process + pages proxied from
-the watch): api state survives frontend rebuilds (try `curl -X POST .../api/counter`),
-and the origin is a plain http server — open the URL logged at startup
-in a browser for browser work. Everything is same-origin and
-relative, in dev and production alike.
+`cargo tauri dev` starts `cargo leptos watch` first. The watch runs the cli on http://127.0.0.1:3000, and the window shows the same pages through the plugin. For work in a browser, run `cargo leptos watch` alone and open that address.
 
 ## Make it yours
 
-The wizard cargo-leptos already ships (it wraps cargo-generate) prompts
-for the display name, bundle identifier and author, with defaults derived
-from the project name — and an empty author takes your git config
-identity:
+cargo-leptos ships a wizard that wraps cargo-generate. It asks for the display name, the bundle identifier and the author, with defaults from the project name. An empty author takes your git identity.
 
 ```bash
 cargo leptos new --git https://github.com/nicmell/tauri-leptos
 ```
 
-It then asks to run `scripts/rename-app.sh`: that command *is* the
-rename — answer yes. `cargo generate` takes the same template and can
-skip the question with `--allow-commands`:
+The wizard then asks to run `scripts/rename-app.sh`. That command is the rename, so answer yes. `cargo generate` takes the same template, and `--allow-commands` skips the question:
 
 ```bash
 cargo generate --git https://github.com/nicmell/tauri-leptos \
     --name acme-app --allow-commands
 ```
 
-In a clone — or in a repo made with GitHub's "Use this template" — run
-the script yourself:
+In a clone, or in a repository made with GitHub's "Use this template", run the script yourself:
 
 ```bash
 ./scripts/rename-app.sh --name Acme --slug acme-app \
     --identifier com.acme.app --remove-self
 ```
 
-(`--author` defaults to your git config identity; pass it to override.)
+`--author` defaults to your git identity. The script renames the crates, the bundle identifier, the Android package, the deb and systemd paths, and the docs in one pass. `--dry-run` shows the plan first. `--remove-self` deletes the script after the rename.
 
-Either way it renames crates, the bundle identifier, the Android package,
-the deb/systemd paths and the docs in one pass (`--dry-run` shows the plan
-first; `--remove-self` drops the script once your app no longer needs
-it). Then drop the demo and write your own:
+Then drop the demo and write your own:
 
 | Delete | Then |
 | --- | --- |
-| `crates/app-core/src/server/demo.rs` | start `api_router` from `axum::Router::new()` |
 | `crates/ui/src/demo.rs` | point the route in `crates/ui/src/app.rs` at your page |
-| `crates/ui/assets/public/*.svg` | your own assets (`styles.css` stays) |
-| the demo assertions in `crates/app-core/tests/` | tests for your routes |
+| `greet` in `src-tauri/src/lib.rs` and in `crates/ui/src/tauri_ipc.rs` | add your own commands and their bindings |
+| `crates/ui/public/*.svg` | add your own static files |
 
-Also `cargo tauri icon <your.png>` for the icon set, and replace
-`LICENSE` with your app's.
+Also run `cargo tauri icon <your.png>` for the icon set, and replace `LICENSE` with your app's.
 
 ## Where things go
 
 | To add | Edit |
 | --- | --- |
-| a page or route | `crates/ui/src/app.rs` (+ a module per page) |
-| a server function (typed RPC, served under `/fn`) | any `#[server]` fn in `crates/ui` |
-| a stateful endpoint or WebSocket (`/api`, `/ws`) | `api_router` in `crates/app-core/src/server.rs` |
-| a config field | `AppConfig` in `crates/app-core/src/config.rs` |
-| an app directory | `crates/app-core/src/paths.rs` |
-| a Tauri command or plugin | `src-tauri/src/lib.rs` |
-| a cli subcommand | `crates/app-cli/src/main.rs` |
-| styles or static files | `crates/ui/assets/` |
+| a page or route | `crates/ui/src/app.rs`, with a module per page |
+| a server function | any `#[server]` fn in `crates/ui`, served under `/api` |
+| a setting | a field of `AppConfig` in `crates/ui/src/config.rs`, then its value where the cli and the Tauri app build it |
+| a Tauri command or plugin | `src-tauri/src/lib.rs`, with a binding in `crates/ui/src/tauri_ipc.rs` |
+| a cli flag | `crates/app-cli/src/main.rs` |
+| styles | `crates/ui/style/main.css` |
+| static files | `crates/ui/public/` |
 
-Two rules the layout depends on: `/fn` is frontend-local RPC and `/api`
-is the shareable stateful surface (they must not shadow each other), and
-app-core owns the single router — the entrypoints have no compile-time
-branches. [docs/architecture.md](docs/architecture.md) has the why;
-[docs/template-updates.md](docs/template-updates.md) covers pulling later
-template changes into your app.
+[docs/template-updates.md](docs/template-updates.md) covers how to pull later template changes into your app.
 
 ## Production build
 
 ```bash
 cargo tauri build                 # desktop bundle
-./scripts/build-deb.sh            # Linux deb (binary + site + systemd unit)
-cargo tauri android build         # Android APK (server in-process, assets from the APK)
+cargo tauri android build         # Android APK
+./scripts/build-deb.sh            # Linux deb: the cli, the site and a systemd unit
 ```
 
-`cargo leptos build --release` runs first automatically; the site is
-bundled into the app's resources and served by the in-process server.
+Tauri builds run `cargo leptos build --release --frontend-only` first, and Tauri embeds the site in the app.
 
 ## Tests and quality
 
 ```bash
-cargo nextest run --workspace --no-tests=pass          # native tests
-cargo nextest run -p tauri-leptos-core             # incl. SSR render tests
+cargo nextest run --workspace --no-tests=pass
 cargo clippy --workspace --all-targets
 cargo clippy -p tauri-leptos-ui --features ssr
 cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
 cargo fmt --all && leptosfmt crates/ui/src
 cargo deny check
-bacon                                                  # watch loop (c/w/t/d/s)
+bacon                             # watch loop (c/w/t/d)
 ```
 
-CI runs all of the above on every PR. Conventions live in
-[CLAUDE.md](CLAUDE.md); RustRover run configurations in `.run/`.
+CI runs all of the above on every PR. The conventions are in [CLAUDE.md](CLAUDE.md), and RustRover run configurations are in `.run/`.
 
 ## License
 
-MIT-0 ([LICENSE](LICENSE)) — no attribution required, so an app
-generated from this template just replaces the file with its own.
+MIT-0 ([LICENSE](LICENSE)). It needs no attribution, so an app generated from this template replaces the file with its own.

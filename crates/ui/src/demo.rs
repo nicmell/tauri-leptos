@@ -1,62 +1,83 @@
-//! The demo page: a server function, one button.
+//! The demo page: a counter, a server function and a Tauri command.
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-/// Demo server function: typed isomorphic RPC, no hand-written endpoint.
+use crate::tauri_ipc;
+
+/// The executable that ran the server function, and its OS: the cli under
+/// `cargo leptos watch` in dev, the Tauri app itself in release builds.
 // server functions must be async by contract, awaits or not
 #[allow(clippy::unused_async)]
 #[server]
-async fn server_greet(name: String) -> Result<String, ServerFnError> {
-    Ok(format!("Hello, {name}! (rendered by a server function)"))
+pub async fn whoami() -> Result<String, ServerFnError> {
+    let exe = std::env::current_exe().map_err(|error| ServerFnError::new(error.to_string()))?;
+    let name = exe
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    Ok(format!("{name} ({})", std::env::consts::OS))
 }
 
 #[component]
 pub fn HomePage() -> impl IntoView {
-    let (name, set_name) = signal(String::new());
-    let (server_msg, set_server_msg) = signal(String::new());
+    let count = RwSignal::new(0);
+    let name = RwSignal::new(String::from("Leptos"));
+    let server_reply = RwSignal::new(String::new());
+    let command_reply = RwSignal::new(String::new());
+    let self_check = RwSignal::new(String::from("Not hydrated yet."));
 
-    let update_name = move |ev| {
-        let v = event_target_value(&ev);
-        set_name.set(v);
-    };
-
-    let greet_server_fn = move |_| {
+    // Effects run in the browser only: once, right after hydration.
+    Effect::new(move || {
         spawn_local(async move {
-            let name = name.get_untracked();
-            let message = match server_greet(if name.is_empty() {
-                "world".into()
-            } else {
-                name
-            })
-            .await
-            {
-                Ok(m) => m,
-                Err(e) => format!("server fn failed: {e}"),
-            };
-            set_server_msg.set(message);
+            let server = whoami()
+                .await
+                .unwrap_or_else(|error| format!("error: {error}"));
+            let command = tauri_ipc::greet("self-check")
+                .await
+                .unwrap_or_else(|error| format!("error: {error}"));
+            self_check.set(format!(
+                "Hydrated. Server function: {server}. Tauri command: {command}"
+            ));
+        });
+    });
+
+    let ask_server = move |_| {
+        spawn_local(async move {
+            let reply = whoami()
+                .await
+                .unwrap_or_else(|error| format!("error: {error}"));
+            server_reply.set(format!("The server function ran in {reply}."));
+        });
+    };
+    let greet = move |_| {
+        spawn_local(async move {
+            let reply = tauri_ipc::greet(&name.get_untracked())
+                .await
+                .unwrap_or_else(|error| format!("error: {error}"));
+            command_reply.set(reply);
         });
     };
 
     view! {
-        <main class="container">
-            <h1>"Welcome to Tauri + Leptos"</h1>
+        <h1>"Tauri + Leptos SSR"</h1>
+        <div class="logos">
+            <img src="/tauri.svg" class="logo" alt="Tauri logo" />
+            <img src="/leptos.svg" class="logo" alt="Leptos logo" />
+        </div>
+        <p id="self-check">{move || self_check.get()}</p>
 
-            <div class="row">
-                <a href="https://tauri.app" target="_blank">
-                    <img src="/public/tauri.svg" class="logo tauri" alt="Tauri logo" />
-                </a>
-                <a href="https://docs.rs/leptos/" target="_blank">
-                    <img src="/public/leptos.svg" class="logo leptos" alt="Leptos logo" />
-                </a>
-            </div>
-            <p>"Click on the Tauri and Leptos logos to learn more."</p>
-
-            <div class="row">
-                <input id="greet-input" placeholder="Enter a name..." on:input=update_name />
-                <button on:click=greet_server_fn>"Server fn greet"</button>
-            </div>
-            <p>{move || server_msg.get()}</p>
-        </main>
+        <section>
+            <button on:click=move |_| *count.write() += 1>"Clicked " {count} " times"</button>
+        </section>
+        <section>
+            <button on:click=ask_server>"Call the server function"</button>
+            <p>{move || server_reply.get()}</p>
+        </section>
+        <section>
+            <input bind:value=name />
+            <button on:click=greet>"Call the Tauri command"</button>
+            <p>{move || command_reply.get()}</p>
+        </section>
     }
 }

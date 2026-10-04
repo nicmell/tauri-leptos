@@ -1,6 +1,12 @@
 use tauri_leptos_ui::config::AppConfig;
 use tauri_plugin_leptos_ssr::LeptosSsrExt;
 
+#[tauri::command]
+fn greet(name: &str) -> String {
+    log::info!("greet({name})");
+    format!("Hello, {name}! You've been greeted from Rust!")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -14,6 +20,7 @@ pub fn run() {
         .plugin(tauri_plugin_leptos_ssr::init(|options| {
             tauri_leptos_ui::server::router(options, AppConfig::default())
         }))
+        .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
             let url = app.leptos_ssr().webview_url("/")?;
             tauri::WebviewWindowBuilder::new(app, "main", url)

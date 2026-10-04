@@ -4488,6 +4488,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "console_error_panic_hook",
+ "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",
@@ -4495,6 +4496,7 @@ dependencies = [
  "tokio",
  "tower",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

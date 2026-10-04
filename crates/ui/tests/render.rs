@@ -27,10 +27,7 @@ async fn get(path: &str) -> (StatusCode, String) {
 async fn home_renders_on_the_server() {
     let (status, html) = get("/").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(
-        html.contains("<h1>Welcome to Tauri + Leptos</h1>"),
-        "{html}"
-    );
+    assert!(html.contains("<h1>Tauri + Leptos SSR</h1>"), "{html}");
     assert!(html.contains("/pkg/tauri-leptos.js"), "{html}");
     assert!(html.contains("/pkg/tauri-leptos.wasm"), "{html}");
     assert!(!html.contains("_bg.wasm"), "{html}");

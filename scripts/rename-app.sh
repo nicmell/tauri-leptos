@@ -147,11 +147,13 @@ replace_in() {
 }
 
 # Every file under version control except this script (which holds the
-# old names on purpose) and LICENSE (a copyright grant is not a name to
-# rewrite — replace the file with your app's).
+# old names on purpose), LICENSE (a copyright grant is not a name to
+# rewrite — replace the file with your app's) and symlinks: grep follows
+# AGENTS.md to CLAUDE.md, and perl -i would replace the link with a copy.
 candidates() {
   if [ "$GIT" = 1 ]; then
-    git ls-files -z -- . ':!:scripts/rename-app.sh' ':!:LICENSE'
+    git ls-files -z -- . ':!:scripts/rename-app.sh' ':!:LICENSE' \
+      | while IFS= read -r -d '' f; do [ -L "$f" ] || printf '%s\0' "$f"; done
   else
     find . -type f -not -path './.git/*' -not -path './target/*' \
       -not -path './scripts/rename-app.sh' -not -path './LICENSE' -print0

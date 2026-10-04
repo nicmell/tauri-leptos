@@ -68,6 +68,7 @@ jobs:
         run: |
           ./scripts/rename-app.sh --name Acme --slug acme-app \
             --identifier com.acme.app --author "Ada <ada@acme.com>"
+          test -L AGENTS.md
           cargo leptos build
           cargo clippy --workspace --all-targets
           cargo nextest run --workspace --no-tests=pass

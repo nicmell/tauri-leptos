@@ -63,6 +63,8 @@ Then drop the demo and write your own:
 
 Also run `cargo tauri icon <your.png>` for the icon set, and replace `LICENSE` with your app's.
 
+cargo-generate does not copy symlinks. So in an app made with it, restore `AGENTS.md` with `ln -s CLAUDE.md AGENTS.md`.
+
 ## Where things go
 
 | To add | Edit |

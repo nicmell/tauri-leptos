@@ -1,8 +1,0 @@
-# The repo-local app root for reproducible dev runs and the watch
-# server (TAURI_LEPTOS_APP_DIR=appdir): runtime data is ignored, the
-# dev config is tracked.
-*
-!.gitignore
-!config
-config/*
-!config/config.toml

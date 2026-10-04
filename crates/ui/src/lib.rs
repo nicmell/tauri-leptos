@@ -1,5 +1,5 @@
-pub mod api;
 pub mod app;
+pub mod config;
 mod demo;
 #[cfg(feature = "ssr")]
 pub mod server;

@@ -1,10 +1,4 @@
 [env]
-# leptos derives asset names (e.g. pkg/<name>.wasm vs the wasm-bindgen
-# default <name>_bg.wasm) from this compile-time env var. cargo-leptos
-# sets it for its own builds; pinning it here keeps plain cargo builds
-# (the tauri shell with the ssr feature) consistent.
+# Plain cargo builds (the Tauri app, the deb binary) need it as much as
+# cargo-leptos ones: see docs/architecture.md.
 LEPTOS_OUTPUT_NAME = "tauri-leptos"
-# Server-fn route prefix, compiled into client and server (must match
-# server-fn-prefix in the leptos metadata): /fn = frontend-local RPC,
-# distinct from the shareable /api surface — no route shadowing.
-SERVER_FN_PREFIX = "/fn"

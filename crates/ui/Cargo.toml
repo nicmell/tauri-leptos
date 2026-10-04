@@ -13,13 +13,15 @@ crate-type = ["cdylib", "rlib"]
 leptos.workspace = true
 leptos_meta.workspace = true
 leptos_router.workspace = true
-gloo-net.workspace = true
-futures.workspace = true
-serde.workspace = true
 console_error_panic_hook = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 leptos_axum = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
+
+[dev-dependencies]
+axum.workspace = true
+tokio.workspace = true
+tower.workspace = true
 
 [features]
 hydrate = [
@@ -35,6 +37,9 @@ ssr = [
   "dep:axum",
 ]
 
+[[test]]
+name = "render"
+required-features = ["ssr"]
+
 [lints]
 workspace = true
-

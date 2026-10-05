@@ -12,7 +12,7 @@ The URL is a placeholder on purpose. The rename rewrites every copy of the templ
 
 Conflicts land where the rename touched the tree: the crate names, the bundle identifier, and the deb and systemd paths. Two habits keep them cheap:
 
-- Keep app code out of the demo. The demo is `crates/ui/src/demo.rs`, the `greet` command with its binding, and the logos. Deleting them is the documented start, so a template commit that touches them conflicts with nothing of yours.
+- Keep app code out of the demo. The demo is `crates/ui/src/demo.rs`, the `greet` command with its binding, and the logos. Deleting them is the documented start, so a template commit that touches them conflicts with nothing of yours. The pipe's messages and session are different. Your app replaces them, so a template commit that changes them conflicts with your version.
 - When a merge gets noisy, cherry-pick. Each template commit holds one feature (see CLAUDE.md), so `git cherry-pick <commit>` is often cleaner than a merge of a range.
 
 The rename is deterministic. If you run `scripts/rename-app.sh` with the same flags on a file from the template, you get the text that your app already has. Keep the flags in your README, or in the commit that renamed the app, so that the next merge can use them again.

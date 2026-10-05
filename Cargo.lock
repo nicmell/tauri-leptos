@@ -4504,11 +4504,25 @@ dependencies = [
  "leptos_router",
  "log",
  "tauri-leptos-protocol",
+ "tauri-leptos-worker",
  "tokio",
  "tokio-tungstenite",
+ "toml 1.1.6+spec-1.1.0",
  "tower",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "tauri-leptos-worker"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "js-sys",
+ "tauri-leptos-protocol",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

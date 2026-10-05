@@ -18,6 +18,13 @@ console_error_panic_hook = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
+tauri-leptos-worker = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
+  "MessageEvent",
+  "Worker",
+  "WorkerOptions",
+  "WorkerType",
+] }
 leptos_axum = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["time"] }
@@ -29,6 +36,7 @@ tokio.workspace = true
 tower.workspace = true
 tokio-tungstenite.workspace = true
 futures-util.workspace = true
+toml.workspace = true
 
 [features]
 hydrate = [
@@ -37,6 +45,8 @@ hydrate = [
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
   "dep:js-sys",
+  "dep:tauri-leptos-worker",
+  "dep:web-sys",
 ]
 ssr = [
   "leptos/ssr",
@@ -55,6 +65,9 @@ required-features = ["ssr"]
 [[test]]
 name = "socket"
 required-features = ["ssr"]
+
+[[test]]
+name = "worker"
 
 [lints]
 workspace = true

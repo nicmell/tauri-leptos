@@ -39,6 +39,8 @@ jobs:
         run: cargo clippy -p tauri-leptos-ui --features ssr
       - name: clippy (ui hydrate, wasm)
         run: cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
+      - name: clippy (worker, wasm)
+        run: cargo clippy -p tauri-leptos-worker --target wasm32-unknown-unknown
       - name: tests
         run: cargo nextest run --workspace --no-tests=pass
       # The other entry point: cargo-generate prompts, its hook runs the

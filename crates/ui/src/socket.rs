@@ -1,5 +1,8 @@
-//! The websocket of the page's worker: the server half (feature `ssr`).
+//! The websocket of the page's worker: the server half (feature `ssr`) and
+//! the page half (feature `hydrate`).
 
+#[cfg(feature = "hydrate")]
+pub use client::{SocketWorker, url};
 #[cfg(feature = "ssr")]
 pub use server::{OriginPolicy, router, serve};
 
@@ -66,4 +69,109 @@ mod server {
         log::info!("websocket for origin {origin:?}");
         ws.on_upgrade(crate::demo::session)
     }
+}
+
+#[cfg(feature = "hydrate")]
+mod client {
+    use tauri_leptos_protocol::{ClientMessage, WorkerCommand, WorkerEvent, decode, encode};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen::prelude::*;
+    use web_sys::{MessageEvent, Worker, WorkerOptions, WorkerType};
+
+    /// The websocket URL for this page: `ws_addr` inside the Tauri app, the
+    /// page's own origin in a browser.
+    pub fn url(ws_addr: &str) -> String {
+        let window = leptos::prelude::window();
+        let in_tauri =
+            js_sys::Reflect::has(&window, &"__TAURI_INTERNALS__".into()).unwrap_or(false);
+        if in_tauri {
+            return format!("ws://{ws_addr}/ws");
+        }
+        let location = window.location();
+        let scheme = if location
+            .protocol()
+            .is_ok_and(|protocol| protocol == "https:")
+        {
+            "wss"
+        } else {
+            "ws"
+        };
+        format!("{scheme}://{}/ws", location.host().unwrap_or_default())
+    }
+
+    /// The page's web worker, which holds the websocket.
+    pub struct SocketWorker {
+        worker: Worker,
+        _on_event: Closure<dyn Fn(MessageEvent)>,
+    }
+
+    impl SocketWorker {
+        /// Starts the worker, connects it to `url`, and hands each event it
+        /// reports to `on_event`.
+        pub fn spawn(
+            url: String,
+            on_event: impl Fn(WorkerEvent) + 'static,
+        ) -> Result<Self, String> {
+            let options = WorkerOptions::new();
+            options.set_type(WorkerType::Module);
+            let worker = Worker::new_with_options("/worker.js", &options)
+                .map_err(|error| format!("{error:?}"))?;
+            let on_event = {
+                let worker = worker.clone();
+                Closure::<dyn Fn(MessageEvent)>::new(move |message: MessageEvent| {
+                    let Some(Ok(event)) = message.data().as_string().map(|json| decode(&json))
+                    else {
+                        return;
+                    };
+                    if event == WorkerEvent::Ready {
+                        let connect = WorkerCommand::Connect { url: url.clone() };
+                        let _ = worker.post_message(&encode(&connect).into());
+                    }
+                    on_event(event);
+                })
+            };
+            worker.set_onmessage(Some(on_event.as_ref().unchecked_ref()));
+            Ok(Self {
+                worker,
+                _on_event: on_event,
+            })
+        }
+
+        /// Sends `message` to the server while the websocket is open.
+        pub fn send(&self, message: ClientMessage) {
+            let command = WorkerCommand::Send { message };
+            let _ = self.worker.post_message(&encode(&command).into());
+        }
+    }
+
+    impl Drop for SocketWorker {
+        fn drop(&mut self) {
+            self.worker.set_onmessage(None);
+            self.worker.terminate();
+        }
+    }
+}
+
+/// The page's web worker; it runs in the browser only.
+#[cfg(not(feature = "hydrate"))]
+pub struct SocketWorker;
+
+#[cfg(not(feature = "hydrate"))]
+impl SocketWorker {
+    /// Fails outside the browser.
+    pub fn spawn(
+        _url: String,
+        _on_event: impl Fn(tauri_leptos_protocol::WorkerEvent) + 'static,
+    ) -> Result<Self, String> {
+        Err("the worker runs in the browser".to_owned())
+    }
+
+    /// Does nothing outside the browser.
+    pub fn send(&self, _message: tauri_leptos_protocol::ClientMessage) {}
+}
+
+/// The websocket URL for this page; outside the browser, `ws_addr`.
+#[cfg(not(feature = "hydrate"))]
+pub fn url(ws_addr: &str) -> String {
+    format!("ws://{ws_addr}/ws")
 }

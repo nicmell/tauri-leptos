@@ -40,6 +40,7 @@ ssr = [
   "dep:leptos_axum",
   "dep:axum",
   "tauri-leptos-core/ssr",
+  "tauri-leptos-protocol/ssr",
 ]
 
 [[test]]

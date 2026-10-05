@@ -1,31 +1,27 @@
-//! The demo session: a tick every second, and an echo of each `Echo`.
+//! The far end of a pipe, which the app brings: an async function of the
+//! page's frames and of the frames it sends back.
 
-use std::time::Duration;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 
-use tauri_leptos_protocol::{ClientMessage, ServerMessage};
 use tokio::sync::mpsc;
 
-/// Answers the page's messages from `incoming` on `outgoing`, and sends a
-/// `Tick` every second. It ends when `incoming` closes or `outgoing` fails.
-pub async fn session(
-    mut incoming: mpsc::Receiver<ClientMessage>,
-    outgoing: mpsc::Sender<ServerMessage>,
-) {
-    let mut ticks = tokio::time::interval(Duration::from_secs(1));
-    let mut count = 0;
-    loop {
-        let reply = tokio::select! {
-            _ = ticks.tick() => {
-                count += 1;
-                ServerMessage::Tick { count }
-            }
-            message = incoming.recv() => match message {
-                Some(ClientMessage::Echo { text }) => ServerMessage::Echo { text },
-                None => return,
-            },
-        };
-        if outgoing.send(reply).await.is_err() {
-            return;
-        }
-    }
+use crate::Frame;
+
+/// Runs the session of one pipe. A session ends when the page's frames end,
+/// or when it returns on its own.
+pub type Session = Arc<
+    dyn Fn(mpsc::Receiver<Frame>, mpsc::Sender<Frame>) -> Pin<Box<dyn Future<Output = ()> + Send>>
+        + Send
+        + Sync,
+>;
+
+/// The [`Session`] that runs `f` for each pipe.
+pub fn session<F, Fut>(f: F) -> Session
+where
+    F: Fn(mpsc::Receiver<Frame>, mpsc::Sender<Frame>) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    Arc::new(move |incoming, outgoing| Box::pin(f(incoming, outgoing)))
 }

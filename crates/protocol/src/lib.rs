@@ -1,8 +1,13 @@
-//! The messages between the page, its pipe and the session at the far end,
-//! and their JSON encoding.
+//! The messages between the page and the session at the far end of the pipe,
+//! their JSON encoding, and (feature `ssr`) the session itself.
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "ssr")]
+mod session;
+#[cfg(feature = "ssr")]
+pub use session::session;
 
 /// A message from the page to the session.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,18 +25,6 @@ pub enum ServerMessage {
     Tick { count: u64 },
     /// The text of a [`ClientMessage::Echo`].
     Echo { text: String },
-}
-
-/// What the far end of the pipe reports to the page.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum PipeEvent {
-    /// The session is reachable.
-    Connected,
-    /// The session ended. A worker pipe opens a new one.
-    Disconnected,
-    /// The session sent `message`.
-    Received { message: ServerMessage },
 }
 
 /// `value` as JSON.
@@ -75,18 +68,6 @@ mod tests {
         pinned(
             &ServerMessage::Echo { text: "hi".into() },
             r#"{"type":"echo","text":"hi"}"#,
-        );
-    }
-
-    #[test]
-    fn pipe_events() {
-        pinned(&PipeEvent::Connected, r#"{"type":"connected"}"#);
-        pinned(&PipeEvent::Disconnected, r#"{"type":"disconnected"}"#);
-        pinned(
-            &PipeEvent::Received {
-                message: ServerMessage::Tick { count: 1 },
-            },
-            r#"{"type":"received","message":{"type":"tick","count":1}}"#,
         );
     }
 

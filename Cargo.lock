@@ -4464,6 +4464,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-leptos-core",
+ "tauri-leptos-protocol",
  "tauri-leptos-ui",
  "tauri-plugin-leptos-ssr",
  "tauri-plugin-log",
@@ -4493,7 +4494,7 @@ dependencies = [
  "futures-util",
  "js-sys",
  "log",
- "tauri-leptos-protocol",
+ "serde",
  "tokio",
  "tokio-tungstenite",
  "wasm-bindgen",
@@ -4507,6 +4508,8 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "tauri-leptos-core",
+ "tokio",
 ]
 
 [[package]]

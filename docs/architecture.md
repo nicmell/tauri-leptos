@@ -8,11 +8,13 @@ A pure-Rust application template: a Leptos SSR app with one axum router, served 
 crates/ui        the Leptos app. Feature hydrate is the wasm client.
                  Feature ssr adds server::router(options, config): the
                  pages and server functions, without a fallback.
-crates/core      the pipe from the page to a session. Feature hydrate
-                 holds the page's end, the Tauri bindings and the web
-                 worker. Feature ssr holds the session, the /ws route
-                 and the Tauri app's pipes.
-crates/protocol  the messages of the pipe and their JSON encoding.
+crates/core      the pipe from the page to a session, transport only:
+                 frames of text or bytes. Feature hydrate holds the
+                 page's end, the Tauri bindings and the web worker.
+                 Feature ssr holds the /ws route and the Tauri app's
+                 pipes, which run the session that the app brings.
+crates/protocol  the demo's messages, their JSON encoding, and (feature
+                 ssr) the session that answers them.
 crates/app-cli   tauri-leptos-cli: the router plus the site files
                  (ServeDir) on --host/--port. cargo-leptos runs it as
                  the bin-package.
@@ -40,7 +42,7 @@ The Tauri dev build compiles the router but does not run it, because it forwards
 
 ## The pipe
 
-The pipe connects the page to a session, a Rust task that answers the page. The page opens it with `core::page::Pipe::open`, which picks the transport at run time:
+The pipe connects the page to a session, a Rust task that answers the page. It carries frames, text or bytes, in both directions, and it does not read them. The app brings the session: an async function of the page's frames and of the frames that it sends back (`core::session`). The page opens the pipe with `core::page::Pipe::open`, which picks the transport at run time:
 
 ```
 the page    Pipe::open checks for window.__TAURI__, which the Tauri app
@@ -49,18 +51,31 @@ browser     a module worker from /pipe-worker.js (core::worker) holds a
             websocket to /ws on the same server (core::server), and the
             page talks to the worker over a MessagePort
 Tauri app   the page calls the commands pipe_open, pipe_post and
-            pipe_close, and a Tauri channel brings the events back
+            pipe_close, and a Tauri channel brings the frames back
             (core::pipes, in the app)
-both        core::session answers: a tick every second and an echo
+both        the app's session answers (the demo's is in crates/protocol)
 ```
 
-The messages are JSON from `crates/protocol`. The page sends a `ClientMessage`. The far end sends a `PipeEvent`: `Connected`, `Disconnected`, or `Received` with a `ServerMessage` from the session.
+On every leg, the type of a JS value says what it is:
+
+| JS value | Meaning | Direction |
+| --- | --- | --- |
+| string | a text frame | both ways |
+| `ArrayBuffer` | a binary frame | both ways |
+| `{ event: "connected" }` or `{ event: "disconnected" }` | the far end is reachable, or gone | to the page |
+| `{ command: "connect" }` | connect again | to the worker |
+
+The page hears `PipeEvent::Connected`, `Disconnected` or `Frame`. The demo sends JSON from `crates/protocol` in text frames, and its session echoes each binary frame as it is.
 
 The page picks the transport, because only the page knows where it runs. In `cargo tauri dev`, the window gets its pages from the watch, which is the cli build. So a choice at build time fails there, but the window still has `window.__TAURI__`.
 
-In a browser, `Pipe::open` starts a module worker from `/pipe-worker.js`, a site file in `crates/ui/public`. That script loads the app's own wasm and calls `worker_main` from `crates/core`. The page hands the worker one end of a `MessageChannel`. A `MessagePort` keeps its messages until its receiver listens, so the pipe needs no handshake while the worker loads. The websocket goes to `/ws` on the cli, so the pipe adds no port. `/ws` refuses a page from another origin with a 403, and the worker opens a closed websocket again after one second.
+In a browser, `Pipe::open` starts a module worker from `/pipe-worker.js`, a site file in `crates/ui/public`. That script loads the app's own wasm and calls `worker_main` from `crates/core`. The page hands the worker one end of a `MessageChannel`. A `MessagePort` keeps its messages until its receiver listens, so the pipe needs no handshake while the worker loads. The websocket goes to `/ws` on the cli, so the pipe adds no port. `/ws` refuses a page from another origin with a 403.
 
-In the Tauri app, the pipe has no worker and no socket. `pipe_open` starts a session and returns the id of the pipe. The Tauri channel that the page passes to `pipe_open` carries the events. `pipe_post` hands one message to the session, and `pipe_close` ends it. The page waits for each call before the next, because Tauri does not promise the order of concurrent commands. [pipe-background.md](pipe-background.md) measures the channel in a background window on macOS.
+A request to `/ws` without a readable `Origin` passes. A browser always sends one, and any other client can claim whatever it likes, so a demand for one only blocks honest tools. The reader and the writer of the socket are separate tasks. So a reader that waits for room in the session's queue never stops the session's frames from going out.
+
+In the Tauri app, the pipe has no worker and no socket. `pipe_open` starts a session and returns the id of the pipe. The Tauri channel that the page passes to `pipe_open` carries text as JSON and bytes as raw data. `pipe_post` hands one frame to the session, and `pipe_close` ends it. The page waits for each call before the next, because Tauri does not promise the order of concurrent commands. [pipe-background.md](pipe-background.md) measures the channel in a background window on macOS.
+
+The page decides when to connect again. After `Disconnected`, `Pipe::reconnect` asks the worker for a new socket, or opens a new pipe in the Tauri app. That pipe needs a new channel, because Tauri unregisters the callback of a channel when its pipe ends. A frame that the page sends while the pipe is disconnected is dropped. The demo connects again one second after `Disconnected`.
 
 When the page drops its pipe, the session ends. In a browser, the worker stops and closes its socket. In the Tauri app, the page calls `pipe_close`.
 

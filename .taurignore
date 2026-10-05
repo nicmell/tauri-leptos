@@ -1,3 +1,5 @@
+/crates/core
+/crates/protocol
 /crates/ui
 /target
 /docs

@@ -4463,8 +4463,6 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
- "tauri-leptos-core",
- "tauri-leptos-protocol",
  "tauri-leptos-ui",
  "tauri-plugin-leptos-ssr",
  "tauri-plugin-log",
@@ -4490,15 +4488,12 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "console_error_panic_hook",
- "futures",
  "futures-util",
  "js-sys",
  "log",
- "serde",
  "tokio",
  "tokio-tungstenite",
  "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -4518,6 +4513,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "console_error_panic_hook",
+ "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",
@@ -4528,6 +4524,7 @@ dependencies = [
  "toml 1.1.6+spec-1.1.0",
  "tower",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -4562,11 +4559,13 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-leptos-ssr"
-version = "0.1.0"
-source = "git+https://github.com/nicmell/tauri-plugin-leptos-ssr?tag=v0.1.0#dbcfc64e81d1502410831dbb2ccf171d72a7abc0"
+version = "0.2.0"
+source = "git+https://github.com/nicmell/tauri-plugin-leptos-ssr?rev=8eaae0ce03319bc36a665ea96b0481bf9a84c6ec#8eaae0ce03319bc36a665ea96b0481bf9a84c6ec"
 dependencies = [
  "axum",
+ "futures-util",
  "http-body-util",
+ "hyper",
  "hyper-util",
  "leptos_config",
  "log",
@@ -4577,6 +4576,7 @@ dependencies = [
  "tauri-plugin",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-tungstenite",
  "tower",
  "url",
 ]

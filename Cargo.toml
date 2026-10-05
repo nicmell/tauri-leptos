@@ -44,7 +44,7 @@ tower = { version = "0.5", features = ["util"] }
 clap = { version = "4.6", features = ["derive"] }
 tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }
-tauri-plugin-leptos-ssr = { git = "https://github.com/nicmell/tauri-plugin-leptos-ssr", tag = "v0.1.0" }
+tauri-plugin-leptos-ssr = { git = "https://github.com/nicmell/tauri-plugin-leptos-ssr", rev = "8eaae0ce03319bc36a665ea96b0481bf9a84c6ec" }
 tauri-plugin-log = "2.10"
 log = "0.4"
 tokio-tungstenite = "0.29"

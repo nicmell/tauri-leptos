@@ -20,14 +20,12 @@ tauri-build.workspace = true
 [dependencies]
 log.workspace = true
 tauri.workspace = true
-serde_json.workspace = true
-tauri-leptos-core = { workspace = true, features = ["ssr"] }
-tauri-leptos-protocol = { workspace = true, features = ["ssr"] }
 tauri-leptos-ui = { workspace = true, features = ["ssr"] }
 tauri-plugin-leptos-ssr.workspace = true
 tauri-plugin-log.workspace = true
 
 [dev-dependencies]
+serde_json.workspace = true
 toml.workspace = true
 
 [lints]

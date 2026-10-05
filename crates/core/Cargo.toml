@@ -55,5 +55,9 @@ required-features = ["ssr"]
 name = "pipes"
 required-features = ["ssr"]
 
+[[test]]
+name = "session_end"
+required-features = ["ssr"]
+
 [lints]
 workspace = true

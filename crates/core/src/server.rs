@@ -64,7 +64,7 @@ async fn serve(socket: WebSocket, session: Session) {
     let (mut sink, mut stream) = socket.split();
     // Its own task: a reader that waits for room in the session's queue must
     // not stop the session's frames from going out.
-    let mut writer = tokio::spawn(async move {
+    let writer = tokio::spawn(async move {
         while let Some(frame) = from_session.recv().await {
             let message = match frame {
                 Frame::Text(text) => Message::Text(text.into()),
@@ -91,10 +91,9 @@ async fn serve(socket: WebSocket, session: Session) {
     };
     tokio::select! {
         () = reader => {}
-        _ = &mut writer => {}
+        _ = writer => {}
     }
     // The reader is gone, so the session's input is closed and it ends; its
     // output closing ends the writer.
     let _ = running.await;
-    let _ = writer.await;
 }

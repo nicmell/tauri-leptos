@@ -19,6 +19,13 @@ The app works as it does on desktop. The window loads `http://leptos.localhost/`
 
 `cargo tauri android init` generated `src-tauri/gen/android`, and the repository commits it. It is the Android project: the Gradle files, the activity and the signing setup live there. The rename script also moves its package.
 
+One file there is a hand edit: `res/xml/network_security_config.xml`, with its reference in `AndroidManifest.xml`. Release builds refuse cleartext to every host, loopback included. The file allows it to two hosts only:
+
+- `127.0.0.1`, for the worker's websocket to the app's own server
+- `leptos.localhost`, for the dev live-reload socket. With the file present, debug builds follow it too, and they lose the general cleartext permission of `usesCleartextTraffic`.
+
+If you run `cargo tauri android init` again, it drops these edits. Check the git diff afterwards.
+
 ## Develop
 
 Build the site once, then start dev with an emulator or a device connected:

@@ -6,10 +6,13 @@ Template for pure-Rust apps: one Leptos SSR router with two hosts. A generated a
 
 - `Cargo.toml`: the virtual workspace (resolver 3). It holds the shared package fields, `workspace.dependencies`, `workspace.lints`, the release profile and the `[[workspace.metadata.leptos]]` block (bin-package `tauri-leptos-cli`, lib-package `tauri-leptos-ui`). `.cargo/config.toml` sets `LEPTOS_OUTPUT_NAME`, which plain cargo builds need too.
 - `crates/ui`: the Leptos app. Feature `hydrate` is the wasm client, and only cargo-leptos enables it. Feature `ssr` adds `server::router(options, config)`, without a fallback, because each host adds its own.
-- `crates/ui/src/config.rs`: `AppConfig`, empty for now. The router provides it as context.
+- `crates/ui/src/config.rs`: `AppConfig` with `ws_addr`, the Tauri app's websocket address. The router provides it as context.
+- `crates/ui/src/socket.rs`: the websocket. The server half is `router(OriginPolicy)` and `serve`. The page half is `SocketWorker`, which starts the web worker.
+- `crates/protocol`: the JSON messages between the page, the worker and the websocket server. Tests pin their JSON.
+- `crates/worker`: the web worker, wasm32 only. Its export `worker_main` lives in `crates/ui/src/lib.rs`, because rustc does not link an export of a crate that nothing references. `crates/ui/public/worker.js` starts it.
 - `crates/app-cli`: the standalone server, configured by `--host` and `--port` only. `cargo leptos watch` runs it as the bin-package.
-- `src-tauri`: the Tauri app. It registers the plugin with the ui router and opens its window on `webview_url("/")`. `tests/config.rs` checks the plugin's requirements against the leptos metadata.
-- The demo: `crates/ui/src/demo.rs`, the `greet` command in `src-tauri/src/lib.rs` with its binding in `crates/ui/src/tauri_ipc.rs`, and `crates/ui/public/*.svg`. Deleting them is the documented start of an app (README, "Make it yours"). Keep new app code out of them.
+- `src-tauri`: the Tauri app. It registers the plugin with the ui router, serves the websocket on `ws_addr` for the plugin's origin only, and opens its window on `webview_url("/")`. `tests/config.rs` checks the plugin's requirements and the ports against the leptos metadata.
+- The demo: `crates/ui/src/demo.rs` (the page, `SocketSection` and the websocket `session`), the demo messages in `crates/protocol`, the `greet` command in `src-tauri/src/lib.rs` with its binding in `crates/ui/src/tauri_ipc.rs`, and `crates/ui/public/*.svg`. Deleting them is the documented start of an app (README, "Make it yours"). Keep new app code out of them.
 
 ## Commands
 
@@ -23,6 +26,7 @@ cargo check --workspace
 cargo clippy --workspace --all-targets
 cargo clippy -p tauri-leptos-ui --features ssr
 cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
+cargo clippy -p tauri-leptos-worker --target wasm32-unknown-unknown
 cargo nextest run --workspace --no-tests=pass
 cargo fmt --all && leptosfmt crates/ui/src
 cargo deny check
@@ -36,7 +40,8 @@ bacon                                           # watch loop (c=clippy w=wasm t=
 - Formatting: rustfmt and leptosfmt. A Claude Code hook formats edited `.rs` files.
 - Dependencies: versions live only in `workspace.dependencies`, and members use `dep.workspace = true`. New dependencies must be at least 7 days old. Create the lockfile with `RUSTC_BOOTSTRAP=1 cargo generate-lockfile -Zunstable-options --publish-time <today minus 7 days>T00:00:00Z`, because `cargo update` has no such flag.
 - tauri-plugin-leptos-ssr comes from git at a tag. `deny.toml` allows that one git source.
-- Ports: 3000 for the cli (the watch, the `--port` default, `devUrl` and the leptos `site-addr`), 3001 for live reload. Tests check that they agree.
+- Ports: 3000 for the cli (the watch, the `--port` default, `devUrl` and the leptos `site-addr`), 3001 for live reload, 3002 for the Tauri app's websocket (`AppConfig.ws_addr`). Tests check that they agree and do not collide.
+- The websocket is plain `ws://`. Android needs the hand-edited network security config in `src-tauri/gen/android` for it, and `cargo tauri android init` drops that file.
 - Server functions use the Leptos default prefix `/api`.
 - Any server built with plain cargo serves a release site, because dev cargo-leptos builds hydrate only against their own watch.
 - The template is MIT-0 (`license` in `workspace.package`). A generated app replaces LICENSE with its own. Crates stay `publish = false`, and cargo-deny skips them as private.

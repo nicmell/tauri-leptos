@@ -5,9 +5,11 @@ A pure-Rust application template: one Leptos SSR app, served two ways. The cli s
 Full picture: [docs/architecture.md](docs/architecture.md).
 
 ```
-crates/ui        Leptos app: wasm client (feature hydrate), SSR router and server functions (feature ssr)
-crates/app-cli   tauri-leptos-cli: the router plus the site files on --host/--port
-src-tauri        Tauri app: the router behind the plugin's leptos scheme
+crates/ui        Leptos app: wasm client (feature hydrate), SSR router, server functions and websocket server (feature ssr)
+crates/protocol  the JSON messages between the page, its web worker and the websocket server
+crates/worker    the web worker that holds the websocket, started from the app's own wasm
+crates/app-cli   tauri-leptos-cli: the router, the websocket and the site files on --host/--port
+src-tauri        Tauri app: the router behind the plugin's leptos scheme, and the websocket on 127.0.0.1:3002
 docs/            architecture, per-platform install, template updates
 ```
 
@@ -57,7 +59,8 @@ Then drop the demo and write your own:
 
 | Delete | Then |
 | --- | --- |
-| `crates/ui/src/demo.rs` | point the route in `crates/ui/src/app.rs` at your page |
+| `crates/ui/src/demo.rs`, with the websocket section and `session` | point the route in `crates/ui/src/app.rs` at your page, and `socket::router` at your own session |
+| the demo messages in `crates/protocol/src/lib.rs` | your own messages |
 | `greet` in `src-tauri/src/lib.rs` and in `crates/ui/src/tauri_ipc.rs` | add your own commands and their bindings |
 | `crates/ui/public/*.svg` | add your own static files |
 
@@ -73,6 +76,7 @@ cargo-generate does not copy symlinks. So in an app made with it, restore `AGENT
 | a server function | any `#[server]` fn in `crates/ui`, served under `/api` |
 | a setting | a field of `AppConfig` in `crates/ui/src/config.rs`, then its value where the cli and the Tauri app build it |
 | a Tauri command or plugin | `src-tauri/src/lib.rs`, with a binding in `crates/ui/src/tauri_ipc.rs` |
+| a websocket message | `crates/protocol/src/lib.rs`, then the session in `crates/ui/src/demo.rs` and the worker in `crates/worker/src/lib.rs` |
 | a cli flag | `crates/app-cli/src/main.rs` |
 | styles | `crates/ui/style/main.css` |
 | static files | `crates/ui/public/` |
@@ -96,6 +100,7 @@ cargo nextest run --workspace --no-tests=pass
 cargo clippy --workspace --all-targets
 cargo clippy -p tauri-leptos-ui --features ssr
 cargo clippy -p tauri-leptos-ui --features hydrate --target wasm32-unknown-unknown
+cargo clippy -p tauri-leptos-worker --target wasm32-unknown-unknown
 cargo fmt --all && leptosfmt crates/ui/src
 cargo deny check
 bacon                             # watch loop (c/w/t/d)

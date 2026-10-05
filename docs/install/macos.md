@@ -17,6 +17,6 @@ The `beforeBuildCommand` runs `cargo leptos build --release --frontend-only` fir
 
 ## Run
 
-Open the app. It needs no files outside the bundle, and it opens no network port. tauri-plugin-log writes the log to stdout and to `~/Library/Logs/com.example.tauri-leptos/`.
+Open the app. It needs no files outside the bundle. It opens one network port, the websocket of `AppConfig.ws_addr` on `127.0.0.1:3002`. tauri-plugin-log writes the log to stdout and to `~/Library/Logs/com.example.tauri-leptos/`.
 
 For development, run `cargo tauri dev`. See [the dev workflows](../architecture.md#dev-workflows).

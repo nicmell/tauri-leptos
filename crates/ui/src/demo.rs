@@ -1,9 +1,14 @@
-//! The demo page: a counter, a server function and a Tauri command.
+//! The demo page: a counter, a server function, a Tauri command and the pipe.
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use tauri_leptos_core::page::Pipe;
+use tauri_leptos_protocol::{ClientMessage, PipeEvent, ServerMessage};
 
 use crate::tauri_ipc;
+
+/// The text the self-check sends through the pipe.
+const SELF_CHECK: &str = "self-check";
 
 /// The executable that ran the server function, and its OS: the cli under
 /// `cargo leptos watch` in dev, the Tauri app itself in release builds.
@@ -26,6 +31,7 @@ pub fn HomePage() -> impl IntoView {
     let server_reply = RwSignal::new(String::new());
     let command_reply = RwSignal::new(String::new());
     let self_check = RwSignal::new(String::from("Not hydrated yet."));
+    let pipe_check = RwSignal::new(String::new());
 
     // Effects run in the browser only: once, right after hydration.
     Effect::new(move || {
@@ -65,7 +71,7 @@ pub fn HomePage() -> impl IntoView {
             <img src="/tauri.svg" class="logo" alt="Tauri logo" />
             <img src="/leptos.svg" class="logo" alt="Leptos logo" />
         </div>
-        <p id="self-check">{move || self_check.get()}</p>
+        <p id="self-check">{move || format!("{}{}", self_check.get(), pipe_check.get())}</p>
 
         <section>
             <button on:click=move |_| *count.write() += 1>"Clicked " {count} " times"</button>
@@ -78,6 +84,68 @@ pub fn HomePage() -> impl IntoView {
             <input bind:value=name />
             <button on:click=greet>"Call the Tauri command"</button>
             <p>{move || command_reply.get()}</p>
+        </section>
+        <PipeSection pipe_check />
+    }
+}
+
+/// The pipe: its state, the session's tick, and an echo through it. The
+/// self-check's echo is reported to `pipe_check`.
+#[component]
+fn PipeSection(pipe_check: RwSignal<String>) -> impl IntoView {
+    let state = RwSignal::new(String::from("Not open."));
+    let tick = RwSignal::new(0_u64);
+    let echo_text = RwSignal::new(String::from("Hello through the pipe"));
+    let echo_reply = RwSignal::new(String::new());
+    let pipe = StoredValue::new_local(None::<Pipe>);
+
+    Effect::new(move || {
+        let on_event = move |event| match event {
+            PipeEvent::Connected => {
+                state.set("Connected.".into());
+                pipe.with_value(|pipe| {
+                    if let Some(pipe) = pipe {
+                        pipe.send(&ClientMessage::Echo {
+                            text: SELF_CHECK.into(),
+                        });
+                    }
+                });
+            }
+            PipeEvent::Disconnected => state.set("Disconnected, reconnecting.".into()),
+            PipeEvent::Received {
+                message: ServerMessage::Tick { count },
+            } => tick.set(count),
+            PipeEvent::Received {
+                message: ServerMessage::Echo { text },
+            } => {
+                if text == SELF_CHECK {
+                    pipe_check.set(" Pipe: the echo answered.".into());
+                }
+                echo_reply.set(text);
+            }
+        };
+        match Pipe::open(on_event) {
+            Ok(opened) => pipe.set_value(Some(opened)),
+            Err(error) => state.set(format!("error: {error}")),
+        }
+    });
+
+    let send_echo = move |_| {
+        pipe.with_value(|pipe| {
+            if let Some(pipe) = pipe {
+                pipe.send(&ClientMessage::Echo {
+                    text: echo_text.get_untracked(),
+                });
+            }
+        });
+    };
+
+    view! {
+        <section>
+            <p>"Pipe: " {move || state.get()} " Tick " {tick} "."</p>
+            <input bind:value=echo_text />
+            <button on:click=send_echo>"Send through the pipe"</button>
+            <p>{move || echo_reply.get()}</p>
         </section>
     }
 }

@@ -44,5 +44,9 @@ hydrate = [
 name = "server"
 required-features = ["ssr"]
 
+[[test]]
+name = "pipes"
+required-features = ["ssr"]
+
 [lints]
 workspace = true

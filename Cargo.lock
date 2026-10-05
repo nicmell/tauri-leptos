@@ -4463,6 +4463,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "tauri-leptos-core",
  "tauri-leptos-ui",
  "tauri-plugin-leptos-ssr",
  "tauri-plugin-log",
@@ -4560,7 +4561,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-leptos-ssr"
 version = "0.1.0"
-source = "git+https://github.com/nicmell/tauri-plugin-leptos-ssr?tag=v0.1.0#dbcfc64e81d1502410831dbb2ccf171d72a7abc0"
+source = "git+https://github.com/nicmell/tauri-plugin-leptos-ssr?tag=v0.1.2#be4442ef64ade0bba4818e8f8fa145de65303c22"
 dependencies = [
  "axum",
  "http-body-util",

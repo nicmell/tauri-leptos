@@ -2,6 +2,8 @@
 
 pub mod page;
 #[cfg(feature = "ssr")]
+pub mod pipes;
+#[cfg(feature = "ssr")]
 pub mod server;
 #[cfg(feature = "ssr")]
 pub mod session;

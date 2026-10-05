@@ -91,9 +91,16 @@ async fn the_socket_takes_its_own_origin_only() {
     }
 }
 
-async fn script(path: &str) -> (String, String) {
-    let request = Request::get(path).body(Body::empty()).expect("request");
+async fn script(path: &str, from_webview: bool) -> (String, String) {
+    let mut request = Request::get(path);
+    if from_webview {
+        request = request.header("leptos-ssr-origin", "leptos://localhost");
+    }
+    let request = request.body(Body::empty()).expect("request");
     let Ok(response) = router("app", "pkg").oneshot(request).await;
+    if path == "/pipe.js" {
+        assert_eq!(response.headers()[header::VARY], "leptos-ssr-origin");
+    }
     let content_type = response.headers()[header::CONTENT_TYPE]
         .to_str()
         .expect("ascii")
@@ -109,12 +116,19 @@ async fn script(path: &str) -> (String, String) {
 
 #[tokio::test]
 async fn the_scripts_are_javascript() {
-    let (content_type, worker) = script("/pipe/worker.js").await;
+    let (content_type, worker) = script("/pipe/worker.js", false).await;
     assert_eq!(content_type, "text/javascript; charset=utf-8");
     assert!(worker.contains("import('/pkg/app.js')"), "{worker}");
     assert!(worker.contains("'/pkg/app.wasm'"), "{worker}");
 
-    let (content_type, pipe) = script("/pipe.js").await;
+    let (content_type, pipe) = script("/pipe.js", false).await;
     assert_eq!(content_type, "text/javascript; charset=utf-8");
     assert!(pipe.contains("new Worker('/pipe/worker.js'"), "{pipe}");
+}
+
+#[tokio::test]
+async fn the_tauri_webview_gets_the_channel_pipe() {
+    let (content_type, pipe) = script("/pipe.js", true).await;
+    assert_eq!(content_type, "text/javascript; charset=utf-8");
+    assert!(pipe.contains("invoke('pipe_open'"), "{pipe}");
 }

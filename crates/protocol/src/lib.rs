@@ -28,7 +28,7 @@ pub enum ServerMessage {
 pub enum PipeEvent {
     /// The session is reachable.
     Connected,
-    /// The session ended, and the far end tries again.
+    /// The session ended. A worker pipe opens a new one.
     Disconnected,
     /// The session sent `message`.
     Received { message: ServerMessage },

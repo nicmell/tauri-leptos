@@ -2,8 +2,12 @@
 
 pub mod page;
 #[cfg(feature = "ssr")]
+pub mod pipes;
+#[cfg(feature = "ssr")]
 pub mod server;
 #[cfg(feature = "ssr")]
 pub mod session;
+#[cfg(feature = "hydrate")]
+pub mod tauri_ipc;
 #[cfg(feature = "hydrate")]
 pub mod worker;

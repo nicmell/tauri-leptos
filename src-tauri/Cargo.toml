@@ -20,6 +20,7 @@ tauri-build.workspace = true
 [dependencies]
 log.workspace = true
 tauri.workspace = true
+tauri-leptos-core = { workspace = true, features = ["ssr"] }
 tauri-leptos-ui = { workspace = true, features = ["ssr"] }
 tauri-plugin-leptos-ssr.workspace = true
 tauri-plugin-log.workspace = true

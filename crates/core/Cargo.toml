@@ -12,6 +12,8 @@ axum = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["sync", "time"] }
 log = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
 console_error_panic_hook = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true, features = [
@@ -36,6 +38,8 @@ futures-util.workspace = true
 ssr = ["dep:axum", "dep:tokio", "dep:log"]
 hydrate = [
   "dep:wasm-bindgen",
+  "dep:wasm-bindgen-futures",
+  "dep:futures",
   "dep:js-sys",
   "dep:console_error_panic_hook",
   "dep:web-sys",
@@ -43,6 +47,10 @@ hydrate = [
 
 [[test]]
 name = "server"
+required-features = ["ssr"]
+
+[[test]]
+name = "pipes"
 required-features = ["ssr"]
 
 [lints]

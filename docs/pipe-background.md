@@ -4,7 +4,7 @@ On macOS, a page in a hidden Tauri window gets less processing time. Earlier tes
 
 The measurement ran on 2026-10-05, on an Apple M5 with macOS 26.6.2 (25G83). It used Tauri 2.12.0, wry 0.57.0 and the `feat/pipe` branch at `87d605f`, with the temporary changes that the next section lists.
 
-The pipe changed after this measurement. It no longer has `/pipe.js`, and on the Tauri side it no longer has the `MessagePort` hop. The `chan` path below is the Tauri transport of today.
+The pipe changed after this measurement. It no longer has `/pipe.js`. In the Tauri app, the pipe is now a websocket that tauri-plugin-leptos-ssr carries over its commands, with the worker between the page and the socket. Those commands reach Rust through the app's main thread, so finding 4 applies to them as it does to the channels.
 
 ## Setup
 

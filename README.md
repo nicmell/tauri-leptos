@@ -1,15 +1,15 @@
 # tauri-leptos
 
-A pure-Rust application template: one Leptos SSR app, served two ways. The cli serves it on an address you choose. The Tauri app serves it inside its window through [tauri-plugin-leptos-ssr](https://github.com/nicmell/tauri-plugin-leptos-ssr). In both hosts, a pipe connects the page to a Rust session: a web worker with a websocket in a browser, Tauri channels in the app.
+A pure-Rust application template: one Leptos SSR app, served two ways. The cli serves it on an address you choose. The Tauri app serves it inside its window through [tauri-plugin-leptos-ssr](https://github.com/nicmell/tauri-plugin-leptos-ssr). In both hosts, a pipe connects the page to a Rust session: a websocket to `/ws`, with a web worker between the page and the socket. In the app, the plugin carries the socket over IPC.
 
 Full picture: [docs/architecture.md](docs/architecture.md).
 
 ```
 crates/ui        Leptos app: wasm client (feature hydrate), SSR router and server functions (feature ssr)
-crates/core      the pipe from the page to a session: frames over a web worker and a websocket, or over Tauri channels
+crates/core      the pipe from the page to a session: frames over a websocket, relayed by a web worker
 crates/protocol  the demo's messages, their JSON encoding and the session that answers them
 crates/app-cli   tauri-leptos-cli: the router plus the site files on --host/--port
-src-tauri        Tauri app: the router behind the plugin's leptos scheme, the pipe commands
+src-tauri        Tauri app: the router behind the plugin's leptos scheme, websockets included
 docs/            architecture, per-platform install, template updates
 ```
 

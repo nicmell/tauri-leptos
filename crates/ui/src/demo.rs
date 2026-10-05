@@ -81,3 +81,39 @@ pub fn HomePage() -> impl IntoView {
         </section>
     }
 }
+
+/// The demo websocket session: a `Tick` every second, and an `Echo` answer
+/// to each `Echo` the page sends.
+#[cfg(feature = "ssr")]
+pub async fn session(mut socket: axum::extract::ws::WebSocket) {
+    use std::time::Duration;
+
+    use axum::extract::ws::Message;
+    use tauri_leptos_protocol::{ClientMessage, ServerMessage, decode, encode};
+
+    let mut ticks = tokio::time::interval(Duration::from_secs(1));
+    let mut count = 0;
+    loop {
+        let reply = tokio::select! {
+            _ = ticks.tick() => {
+                count += 1;
+                ServerMessage::Tick { count }
+            }
+            message = socket.recv() => match message {
+                Some(Ok(Message::Text(text))) => match decode(text.as_str()) {
+                    Ok(ClientMessage::Echo { text }) => ServerMessage::Echo { text },
+                    Err(_) => continue,
+                },
+                Some(Ok(_)) => continue,
+                Some(Err(_)) | None => return,
+            },
+        };
+        if socket
+            .send(Message::Text(encode(&reply).into()))
+            .await
+            .is_err()
+        {
+            return;
+        }
+    }
+}

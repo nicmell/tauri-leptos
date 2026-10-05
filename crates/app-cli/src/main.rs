@@ -7,6 +7,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use clap::Parser;
 use leptos::prelude::get_configuration;
 use tauri_leptos_ui::config::AppConfig;
+use tauri_leptos_ui::socket::{self, OriginPolicy};
 use tower_http::services::ServeDir;
 
 #[derive(Parser)]
@@ -26,6 +27,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let options = get_configuration(None)?.leptos_options;
     let site_root = options.site_root.to_string();
     let app = tauri_leptos_ui::server::router(options, AppConfig::default())
+        .merge(socket::router(OriginPolicy::SameOrigin))
         .fallback_service(ServeDir::new(site_root));
 
     let listener = tokio::net::TcpListener::bind((cli.host, cli.port)).await?;

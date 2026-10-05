@@ -4496,12 +4496,16 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "console_error_panic_hook",
+ "futures-util",
  "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",
  "leptos_router",
+ "log",
+ "tauri-leptos-protocol",
  "tokio",
+ "tokio-tungstenite",
  "tower",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -4540,7 +4544,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-leptos-ssr"
 version = "0.1.0"
-source = "git+https://github.com/nicmell/tauri-plugin-leptos-ssr?tag=v0.1.0#dbcfc64e81d1502410831dbb2ccf171d72a7abc0"
+source = "git+https://github.com/nicmell/tauri-plugin-leptos-ssr?tag=v0.1.1#83b9d0b39614ba1d954dd41618573d3c12f840a8"
 dependencies = [
  "axum",
  "http-body-util",

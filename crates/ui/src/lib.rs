@@ -3,6 +3,7 @@ pub mod config;
 mod demo;
 #[cfg(feature = "ssr")]
 pub mod server;
+pub mod socket;
 mod tauri_ipc;
 
 #[cfg(feature = "hydrate")]

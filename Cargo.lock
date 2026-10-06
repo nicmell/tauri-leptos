@@ -4463,6 +4463,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "tauri-leptos-core",
  "tauri-leptos-ui",
  "tauri-plugin-leptos-ssr",
  "tauri-plugin-log",
@@ -4483,20 +4484,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-leptos-core"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "console_error_panic_hook",
+ "futures",
+ "futures-util",
+ "js-sys",
+ "log",
+ "tauri-leptos-protocol",
+ "tokio",
+ "tokio-tungstenite",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "tauri-leptos-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "tauri-leptos-ui"
 version = "0.1.0"
 dependencies = [
  "axum",
  "console_error_panic_hook",
- "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",
  "leptos_router",
+ "tauri-leptos-core",
+ "tauri-leptos-protocol",
  "tokio",
+ "toml 1.1.6+spec-1.1.0",
  "tower",
  "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]

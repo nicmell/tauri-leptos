@@ -23,4 +23,6 @@ fn tauri_and_cargo_leptos_agree() {
         Path::new("..").join(leptos("site-root"))
     );
     assert_eq!(env!("LEPTOS_OUTPUT_NAME"), leptos("name"));
+    // core::tauri_ipc reads `window.__TAURI__`.
+    assert_eq!(tauri["app"]["withGlobalTauri"], true);
 }

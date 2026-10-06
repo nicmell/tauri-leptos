@@ -7,9 +7,12 @@ Template for pure-Rust apps: one Leptos SSR router with two hosts. A generated a
 - `Cargo.toml`: the virtual workspace (resolver 3). It holds the shared package fields, `workspace.dependencies`, `workspace.lints`, the release profile and the `[[workspace.metadata.leptos]]` block (bin-package `tauri-leptos-cli`, lib-package `tauri-leptos-ui`). `.cargo/config.toml` sets `LEPTOS_OUTPUT_NAME`, which plain cargo builds need too.
 - `crates/ui`: the Leptos app. Feature `hydrate` is the wasm client, and only cargo-leptos enables it. Feature `ssr` adds `server::router(options, config)`, without a fallback, because each host adds its own.
 - `crates/ui/src/config.rs`: `AppConfig`, empty for now. The router provides it as context.
+- `crates/protocol`: the pipe's messages (`ClientMessage`, `ServerMessage`, `PipeEvent`) and their JSON encoding. Its tests pin the JSON.
+- `crates/core`: the pipe from a page to a session. Feature `hydrate` holds the page's end (`page::Pipe`, which picks the transport at run time), the bindings to `window.__TAURI__` (`tauri_ipc`) and the web worker (`worker_main`). Feature `ssr` holds the session, the route `/ws` and `pipes::Pipes` for the Tauri app. The worker starts from `crates/ui/public/pipe-worker.js`. "The pipe" in `docs/architecture.md` describes both transports.
 - `crates/app-cli`: the standalone server, configured by `--host` and `--port` only. `cargo leptos watch` runs it as the bin-package.
-- `src-tauri`: the Tauri app. It registers the plugin with the ui router and opens its window on `webview_url("/")`. `tests/config.rs` checks the plugin's requirements against the leptos metadata.
+- `src-tauri`: the Tauri app. It registers the plugin with the ui router and opens its window on `webview_url("/")`. The commands `pipe_open`, `pipe_post` and `pipe_close` answer the pipe. When a page starts to load or a window closes, the app closes the pipes of that webview. `tests/config.rs` checks the plugin's requirements against the leptos metadata, and `withGlobalTauri`.
 - The demo: `crates/ui/src/demo.rs`, the `greet` command in `src-tauri/src/lib.rs` with its binding in `crates/ui/src/tauri_ipc.rs`, and `crates/ui/public/*.svg`. Deleting them is the documented start of an app (README, "Make it yours"). Keep new app code out of them.
+- The pipe's demo: the message variants in `crates/protocol` and the tick and echo in `crates/core/src/session.rs`. An app replaces them, and the pipe stays.
 
 ## Commands
 

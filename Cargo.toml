@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/app-cli", "crates/ui", "src-tauri"]
+members = ["crates/app-cli", "crates/core", "crates/protocol", "crates/ui", "src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -33,11 +33,12 @@ leptos_axum = "0.8"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
+web-sys = "0.3"
 tower-http = { version = "0.7", features = ["fs"] }
 console_error_panic_hook = "0.1.7"
 
 # backend
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 tower = { version = "0.5", features = ["util"] }
 clap = { version = "4.6", features = ["derive"] }
@@ -46,10 +47,16 @@ tauri-build = { version = "2", features = [] }
 tauri-plugin-leptos-ssr = { git = "https://github.com/nicmell/tauri-plugin-leptos-ssr", tag = "v0.1.0" }
 tauri-plugin-log = "2.10"
 log = "0.4"
+tokio-tungstenite = "0.29"
+futures-util = "0.3"
+futures = "0.3"
 
 # shared
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1.1"
+tauri-leptos-core = { path = "crates/core" }
+tauri-leptos-protocol = { path = "crates/protocol" }
 tauri-leptos-ui = { path = "crates/ui" }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

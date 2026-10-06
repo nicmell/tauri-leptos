@@ -4,12 +4,20 @@
   "version": "0.1.0",
   "identifier": "com.example.tauri-leptos",
   "build": {
-    "beforeDevCommand": "cd .. && TAURI_LEPTOS_APP_DIR=appdir cargo leptos watch",
-    "beforeBuildCommand": "cd .. && cargo leptos build --release",
-    "devUrl": "http://127.0.0.1:3001"
+    "beforeDevCommand": {
+      "script": "if [ \"$TAURI_ENV_PLATFORM\" = android ]; then adb reverse tcp:3001 tcp:3001; fi; cargo leptos watch ${TAURI_DEV_HOST:+-- --host $TAURI_DEV_HOST}",
+      "cwd": "..",
+      "wait": false
+    },
+    "beforeBuildCommand": {
+      "script": "cargo leptos build --release --frontend-only",
+      "cwd": ".."
+    },
+    "devUrl": "http://127.0.0.1:3000",
+    "frontendDist": "../target/site"
   },
   "app": {
-    "withGlobalTauri": false,
+    "withGlobalTauri": true,
     "windows": [],
     "security": {
       "csp": null
@@ -18,9 +26,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": {
-      "../target/site/": "site/"
-    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -1,5 +1,4 @@
-/crates/ui
-/appdir
+/crates
 /target
 /docs
 /scripts

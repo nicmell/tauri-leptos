@@ -1,43 +1,20 @@
-//! SSR-side routing (feature `ssr`): the leptos pages and server
-//! functions, self-contained — asset serving and the api live in
-//! app-core, which mounts [`router`] as the miss handler of its asset
-//! layer. Unknown paths are a plain 404 (axum's default fallback).
-
-use std::net::SocketAddr;
+//! The SSR side (feature `ssr`): the app's pages and server functions as an
+//! axum router. Each host adds its own fallback for the site files.
 
 use axum::Router;
-use leptos::prelude::LeptosOptions;
+use leptos::prelude::*;
 use leptos_axum::{LeptosRoutes, generate_route_list};
 
 use crate::app::{App, shell};
+use crate::config::AppConfig;
 
-/// The JS/wasm bundle name, read at compile time from the env pinned
-/// in `.cargo/config.toml` (which must match `name` in
-/// `[[workspace.metadata.leptos]]`) — one copy less to keep in sync.
-const OUTPUT_NAME: &str = env!("LEPTOS_OUTPUT_NAME");
-
-/// Leptos options assembled from our own values — the runtime never
-/// depends on cargo-leptos environment variables.
-fn leptos_options(addr: SocketAddr) -> LeptosOptions {
-    LeptosOptions::builder()
-        .output_name(OUTPUT_NAME)
-        .site_addr(addr)
-        // Must match `reload-port` in the cargo-leptos metadata: the
-        // AutoReload script connects to it (dev builds only).
-        .reload_port(3002)
-        .build()
-}
-
-/// The SSR pages + server functions. `api_base` = the origin the
-/// client sends api/ws requests to, injected into the page (`None` =
-/// same origin).
-pub fn router(addr: SocketAddr, api_base: Option<String>) -> Router {
-    let options = leptos_options(addr);
+/// The app's pages and server functions, with `config` as context.
+pub fn router(options: LeptosOptions, config: AppConfig) -> Router {
     let routes = generate_route_list(App);
     Router::new()
-        .leptos_routes(&options, routes, {
+        .leptos_routes_with_context(&options, routes, move || provide_context(config.clone()), {
             let options = options.clone();
-            move || shell(options.clone(), api_base.clone())
+            move || shell(options.clone())
         })
         .with_state(options)
 }

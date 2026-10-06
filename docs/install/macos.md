@@ -13,19 +13,10 @@ cargo install cargo-leptos tauri-cli
 cargo tauri build
 ```
 
-Non-dev builds compile the in-process single-origin server into the shell
-(the dev build instead proxies to a running `cargo leptos watch` — that is
-the dev configuration). `cargo leptos build --release` runs first
-automatically and the site is bundled into the app's Resources.
-Bundles land in `target/release/bundle/` (`.app`, `.dmg`).
+The `beforeBuildCommand` runs `cargo leptos build --release --frontend-only` first. Tauri embeds the site in the app, and the plugin dispatches each request to the router in process. The bundles land in `target/release/bundle/` (`.app`, `.dmg`).
 
 ## Run
 
-Launch the app — it serves everything on an ephemeral local port and opens
-the window there. `config.toml` lives in
-`~/Library/Application Support/com.example.tauri-leptos` (see the config
-table in ../architecture.md for the available fields). Logs go to stderr;
-`RUST_LOG` adjusts verbosity.
+Open the app. It needs no files outside the bundle, and it opens no network port. tauri-plugin-log writes the log to stdout and to `~/Library/Logs/com.example.tauri-leptos/`.
 
-For development: `cargo tauri dev` (see
-[architecture](../architecture.md#dev-workflows)).
+For development, run `cargo tauri dev`. See [the dev workflows](../architecture.md#dev-workflows).

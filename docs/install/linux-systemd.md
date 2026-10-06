@@ -1,18 +1,15 @@
 # Linux (systemd appliance)
 
-The cli serves the whole app (SSR pages + API + WS) on one origin and
-ships as a **deb** with its systemd unit. It links no Tauri/webkit —
-**no GTK/WebKit packages needed** on the server. The reference target is
-Debian 13 "trixie" aarch64 (a Raspberry Pi 5), but nothing here is
-board-specific.
+The cli serves the app (pages, server functions and site files) on one address. It ships as a deb with a systemd unit. It links no Tauri or WebKit code, so the server needs no GTK or WebKit packages. The reference target is Debian 13 "trixie" on aarch64 (a Raspberry Pi 5), but nothing here is specific to that board.
 
-## Prerequisites (once)
+## Prerequisites
+
+On the machine that builds the deb:
 
 ```bash
-# rust + tools, on whichever machine builds the deb
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 rustup target add wasm32-unknown-unknown
-cargo install cargo-leptos cargo-deb   # (or cargo-binstall them)
+cargo install cargo-leptos cargo-deb   # or cargo binstall them
 ```
 
 ## Release flow
@@ -24,49 +21,43 @@ cd tauri-leptos && git pull
 sudo apt install ./target/debian/tauri-leptos-cli_*.deb
 ```
 
-Building on the target keeps the architecture right; cross-building works
-too, the deb is just arch-specific.
+A build on the target gets the architecture right. A cross build also works. The deb is for one architecture only.
 
-The install **enables and starts** `tauri-leptos-cli.service`
-automatically; upgrades (same commands) restart it. Removal stops and
-disables it (`sudo apt remove tauri-leptos-cli`).
+The install enables and starts `tauri-leptos-cli.service`. An upgrade with the same commands restarts it. `sudo apt remove tauri-leptos-cli` stops and disables it.
 
-What the deb contains: `/usr/bin/tauri-leptos-cli`, the release site at
-`/usr/share/tauri-leptos/site`, and the unit at
-`/usr/lib/systemd/system/tauri-leptos-cli.service`
-(`crates/app-cli/debian/` in the repo). The unit runs under
-`DynamicUser=yes` — no account to create. Swap it for `User=`/`Group=`
-if the service needs a fixed uid, group access to a device, or write
-access to its own config.
+The deb contains:
+
+- `/usr/bin/tauri-leptos-cli`
+- the release site, in `/usr/share/tauri-leptos/site`
+- the unit, in `/usr/lib/systemd/system/tauri-leptos-cli.service` (from `crates/app-cli/debian/`)
+
+The unit runs `tauri-leptos-cli --host 0.0.0.0 --port 3000` with `LEPTOS_SITE_ROOT=/usr/share/tauri-leptos/site`. It uses `DynamicUser=yes`, so you create no account.
+
+## Change the address
+
+The address comes only from the command line. To change it, override `ExecStart` with `sudo systemctl edit tauri-leptos-cli.service`:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/tauri-leptos-cli --host 0.0.0.0 --port 8080
+```
 
 ## Verify
 
 ```bash
 systemctl status tauri-leptos-cli.service
-journalctl -u tauri-leptos-cli.service -f      # logs (stderr → journald)
-curl http://<host>:3000/api/hello              # from the LAN
+journalctl -u tauri-leptos-cli.service -f      # the output goes to journald
+curl http://<host>:3000/                       # from the LAN
 ```
 
-Browse `http://<host>:3000` — the whole app (page, API, WS) is served
-there; the API is not authenticated, keep it on a trusted network.
+Open `http://<host>:3000` in a browser. The server functions have no authentication, so keep the server on a trusted network.
 
-Config: systemd's `ConfigurationDirectory=` owns `/etc/tauri-leptos`;
-state under `/var/lib/tauri-leptos`.
-
-## Manual runs (no deb)
+## Manual runs, without the deb
 
 ```bash
-cargo leptos build --release
-cargo run -p tauri-leptos-cli -- serve --host 0.0.0.0
+cargo leptos build --release --frontend-only
+cargo run --release -p tauri-leptos-cli -- --host 0.0.0.0
 ```
 
-For a server feeding remote frontends, set `cors_origins` in the config
-to the frontend origins (`"*"` for tauri shells — their origin is
-ephemeral); the site the server also carries is harmless.
-
-Site and bind come from the config. The deb installs
-`/etc/tauri-leptos/config.toml` (a conffile — apt keeps your edits on
-upgrade) with `listen = "0.0.0.0:3000"` and
-`site_root = "/usr/share/tauri-leptos/site"`; relative `site_root`
-paths resolve against the config's own directory. On a dev machine
-the default is `target/site` (or use `--app-dir appdir`).
+From the repository root, the cli finds the site in `target/site`. From another directory, set `LEPTOS_SITE_ROOT`.

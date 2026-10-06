@@ -1,27 +1,18 @@
 # Pulling template updates
 
-An app generated from this template keeps its own history; the template
-stays reachable as a second remote:
+An app generated from this template keeps its own history. The template stays reachable as a second remote:
 
 ```bash
-git remote add template https://github.com/nicmell/tauri-leptos.git
+git remote add template <template repository URL>
 git fetch template
 git merge template/main          # or cherry-pick single commits
 ```
 
-Conflicts land exactly where the rename touched the tree (crate names,
-the bundle identifier, the deb/systemd paths). Two habits keep them
-cheap:
+The URL is a placeholder on purpose. The rename rewrites every copy of the template's name, and that includes its URL.
 
-- **Keep app code out of the demo files.** `crates/app-core/src/server/demo.rs`
-  and `crates/ui/src/demo.rs` are the template's, and deleting them is
-  the documented start — a template commit that touches them then
-  conflicts with nothing of yours.
-- **Cherry-pick when a merge gets noisy.** Template commits are one
-  feature each (`One feature per commit` in CLAUDE.md), so
-  `git cherry-pick <commit>` is usually cleaner than merging a range.
+Conflicts land where the rename touched the tree: the crate names, the bundle identifier, and the deb and systemd paths. Two habits keep them cheap:
 
-The rename is deterministic: re-running `scripts/rename-app.sh` with the
-same flags on a file taken from the template produces exactly the text
-your app already has. Keep the flags you used in your README (or in the
-commit that renamed the app) so the next merge can reuse them.
+- Keep app code out of the demo. The demo is `crates/ui/src/demo.rs`, the `greet` command with its binding, and the logos. Deleting them is the documented start, so a template commit that touches them conflicts with nothing of yours.
+- When a merge gets noisy, cherry-pick. Each template commit holds one feature (see CLAUDE.md), so `git cherry-pick <commit>` is often cleaner than a merge of a range.
+
+The rename is deterministic. If you run `scripts/rename-app.sh` with the same flags on a file from the template, you get the text that your app already has. Keep the flags in your README, or in the commit that renamed the app, so that the next merge can use them again.

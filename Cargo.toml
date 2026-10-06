@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/app-cli", "crates/app-core", "crates/ui", "src-tauri"]
+members = ["crates/app-cli", "crates/ui", "src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -31,31 +31,26 @@ leptos_meta = "0.8"
 leptos_router = "0.8"
 leptos_axum = "0.8"
 wasm-bindgen = "0.2"
-gloo-net = { version = "0.7", features = ["http", "json", "websocket"] }
-futures = "0.3"
-tower-http = { version = "0.7", features = ["fs", "cors"] }
-axum-reverse-proxy = { version = "2.2", default-features = false }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "registry"] }
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+tower-http = { version = "0.7", features = ["fs"] }
 console_error_panic_hook = "0.1.7"
 
 # backend
-axum = { version = "0.8", features = ["ws"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 tower = { version = "0.5", features = ["util"] }
-tauri-plugin-fs = "2"
 clap = { version = "4.6", features = ["derive"] }
 tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }
+tauri-plugin-leptos-ssr = { git = "https://github.com/nicmell/tauri-plugin-leptos-ssr", tag = "v0.1.0" }
+tauri-plugin-log = "2.10"
+log = "0.4"
 
 # shared
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1.1"
-dirs = "6"
-tracing-appender = "0.2"
-paranoid-android = "0.2"
-tauri-leptos-core = { path = "crates/app-core" }
+tauri-leptos-ui = { path = "crates/ui" }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
@@ -69,13 +64,14 @@ strip = true
 name = "tauri-leptos"
 bin-package = "tauri-leptos-cli"
 bin-features = []
-# Must match SERVER_FN_PREFIX in .cargo/config.toml.
-server-fn-prefix = "/fn"
 lib-package = "tauri-leptos-ui"
 lib-features = ["hydrate"]
 site-root = "target/site"
 site-pkg-dir = "pkg"
-site-addr = "127.0.0.1:3001"
-# 3001 is the API server; live-reload ws stays clear of it
-reload-port = 3002
-assets-dir = "crates/ui/assets"
+site-addr = "127.0.0.1:3000"
+reload-port = 3001
+style-file = "crates/ui/style/main.css"
+assets-dir = "crates/ui/public"
+# cargo-leptos dev builds compile leptos with other flags than the Tauri
+# build; separate target dirs keep them from rebuilding each other.
+bin-target-dir = "target/server"

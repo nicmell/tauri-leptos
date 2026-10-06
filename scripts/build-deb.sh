@@ -4,6 +4,6 @@
 # cargo-deb only builds the Rust binary.
 set -eu
 cd "$(dirname "$0")/.."
-cargo leptos build --release
+cargo leptos build --release --frontend-only
 cargo deb -p tauri-leptos-cli
 echo "install with: sudo apt install ./target/debian/tauri-leptos-cli_*.deb"

@@ -24,7 +24,6 @@ OLD_SLUG="tauri-leptos"          # crate prefix, leptos output name, deb/etc dir
 OLD_SNAKE="tauri_leptos"         # Rust module paths, Android theme
 OLD_IDENT="com.example.tauri-leptos"
 OLD_ANDROID_PKG="com.example.tauri_leptos"
-OLD_APP_DIR_ENV="TAURI_LEPTOS_APP_DIR"
 OLD_AUTHOR="Your Name <you@example.com>"   # workspace authors + deb maintainer
 
 usage() {
@@ -107,7 +106,6 @@ else
 fi
 
 SNAKE="$(printf '%s' "$SLUG" | tr '-' '_')"
-APP_DIR_ENV="$(printf '%s' "$SNAKE" | tr '[:lower:]' '[:upper:]')_DIR"
 # Tauri sanitises the identifier the same way for the Android package.
 ANDROID_PKG="$(printf '%s' "$IDENT" | tr '-' '_')"
 ANDROID_PATH="$(printf '%s' "$ANDROID_PKG" | tr '.' '/')"
@@ -149,11 +147,13 @@ replace_in() {
 }
 
 # Every file under version control except this script (which holds the
-# old names on purpose) and LICENSE (a copyright grant is not a name to
-# rewrite — replace the file with your app's).
+# old names on purpose), LICENSE (a copyright grant is not a name to
+# rewrite — replace the file with your app's) and symlinks: grep follows
+# AGENTS.md to CLAUDE.md, and perl -i would replace the link with a copy.
 candidates() {
   if [ "$GIT" = 1 ]; then
-    git ls-files -z -- . ':!:scripts/rename-app.sh' ':!:LICENSE'
+    git ls-files -z -- . ':!:scripts/rename-app.sh' ':!:LICENSE' \
+      | while IFS= read -r -d '' f; do [ -L "$f" ] || printf '%s\0' "$f"; done
   else
     find . -type f -not -path './.git/*' -not -path './target/*' \
       -not -path './scripts/rename-app.sh' -not -path './LICENSE' -print0
@@ -176,14 +176,11 @@ replace_in "$android_strings" "\"$OLD_SLUG\"" "\"$NAME\""
 replace_in README.md "# $OLD_SLUG" "# $NAME"
 replace_in CLAUDE.md "# $OLD_SLUG" "# $NAME"
 
-# Longest match first: the -cli/-core/-ui crates before the bare slug.
+# Longest match first: the -cli/-ui crates before the bare slug.
 replace "${OLD_SNAKE}_lib"   "${SNAKE}_lib"        "${files[@]}"
-replace "${OLD_SNAKE}_core"  "${SNAKE}_core"       "${files[@]}"
 replace "${OLD_SNAKE}_ui"    "${SNAKE}_ui"         "${files[@]}"
 replace "${OLD_SLUG}-cli"    "${SLUG}-cli"         "${files[@]}"
-replace "${OLD_SLUG}-core"   "${SLUG}-core"        "${files[@]}"
 replace "${OLD_SLUG}-ui"     "${SLUG}-ui"          "${files[@]}"
-replace "$OLD_APP_DIR_ENV"   "$APP_DIR_ENV"        "${files[@]}"
 replace "$OLD_IDENT"         "$IDENT"              "${files[@]}"
 replace "$OLD_ANDROID_PKG"   "$ANDROID_PKG"        "${files[@]}"
 replace "Theme.${OLD_SNAKE}" "Theme.${SNAKE}"      "${files[@]}"
@@ -228,8 +225,7 @@ if [ "$NO_CARGO" = 0 ] && command -v cargo >/dev/null; then
 fi
 
 leftovers=$(candidates \
-  | xargs -0 grep -IlF -e "$OLD_SLUG" -e "$OLD_SNAKE" -e "$OLD_APP_DIR_ENV" \
-      -e "${OLD_IDENT%.*}" 2>/dev/null || true)
+  | xargs -0 grep -IlF -e "$OLD_SLUG" -e "$OLD_SNAKE" -e "${OLD_IDENT%.*}" 2>/dev/null || true)
 if [ -n "$leftovers" ]; then
   echo "leftover template names in:" >&2
   printf '  %s\n' $leftovers >&2
@@ -249,7 +245,7 @@ fi
 
 cat <<NEXT
 done. review with: git status && git diff
-next: delete the demo (crates/app-core/src/server/demo.rs,
-      crates/ui/src/demo.rs — see the README), \`cargo tauri icon <png>\`,
+next: delete the demo (see "Make it yours" in the README),
+      \`cargo tauri icon <png>\`,
       and replace LICENSE with your app's.
 NEXT

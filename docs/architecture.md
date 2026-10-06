@@ -60,7 +60,7 @@ The page picks the transport, because only the page knows where it runs. In `car
 
 In a browser, `Pipe::open` starts a module worker from `/pipe-worker.js`, a site file in `crates/ui/public`. That script loads the app's own wasm and calls `worker_main` from `crates/core`. The page hands the worker one end of a `MessageChannel`. A `MessagePort` keeps its messages until its receiver listens, so the pipe needs no handshake while the worker loads. The websocket goes to `/ws` on the cli, so the pipe adds no port. `/ws` refuses a page from another origin with a 403, and the worker opens a closed websocket again after one second.
 
-In the Tauri app, the pipe has no worker and no socket. `pipe_open` starts a session and returns the id of the pipe. The Tauri channel that the page passes to `pipe_open` carries the events. `pipe_post` hands one message to the session, and `pipe_close` ends it. The page waits for each call before the next, because Tauri does not promise the order of concurrent commands.
+In the Tauri app, the pipe has no worker and no socket. `pipe_open` starts a session and returns the id of the pipe. The Tauri channel that the page passes to `pipe_open` carries the events. `pipe_post` hands one message to the session, and `pipe_close` ends it. The page waits for each call before the next, because Tauri does not promise the order of concurrent commands. [pipe-background.md](pipe-background.md) measures the channel in a background window on macOS.
 
 When the page drops its pipe, the session ends. In a browser, the worker stops and closes its socket. In the Tauri app, the page calls `pipe_close`.
 

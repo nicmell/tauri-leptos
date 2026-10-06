@@ -4560,7 +4560,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-leptos-ssr"
 version = "0.2.0"
-source = "git+https://github.com/nicmell/tauri-plugin-leptos-ssr?rev=8eaae0ce03319bc36a665ea96b0481bf9a84c6ec#8eaae0ce03319bc36a665ea96b0481bf9a84c6ec"
+source = "git+https://github.com/nicmell/tauri-plugin-leptos-ssr?tag=v0.2.0#84f6bf9e1df392db50149df7a5ac2c4adc8c5ef7"
 dependencies = [
  "axum",
  "futures-util",

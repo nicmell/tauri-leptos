@@ -1,10 +1,8 @@
 use std::net::SocketAddr;
-use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use tauri_leptos_core::server::router;
-use tauri_leptos_core::session::session;
-use tauri_leptos_protocol::{ClientMessage, ServerMessage, decode, encode};
+use tauri_leptos_core::{Frame, session};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -14,25 +12,13 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
-#[tokio::test]
-async fn the_session_ticks_echoes_and_ends_with_its_input() {
-    let (to_session, incoming) = mpsc::channel(4);
-    let (outgoing, mut replies) = mpsc::channel(4);
-    let running = tokio::spawn(session(incoming, outgoing));
-
-    assert_eq!(replies.recv().await, Some(ServerMessage::Tick { count: 1 }));
-    let echo = ClientMessage::Echo { text: "hi".into() };
-    to_session.send(echo).await.expect("send");
-    assert_eq!(
-        replies.recv().await,
-        Some(ServerMessage::Echo { text: "hi".into() })
-    );
-
-    drop(to_session);
-    tokio::time::timeout(Duration::from_secs(1), running)
-        .await
-        .expect("the session ends")
-        .expect("no panic");
+/// Sends every frame back.
+async fn echo(mut incoming: mpsc::Receiver<Frame>, outgoing: mpsc::Sender<Frame>) {
+    while let Some(frame) = incoming.recv().await {
+        if outgoing.send(frame).await.is_err() {
+            return;
+        }
+    }
 }
 
 async fn start() -> SocketAddr {
@@ -40,50 +26,55 @@ async fn start() -> SocketAddr {
         .await
         .expect("bind");
     let addr = listener.local_addr().expect("local address");
-    tokio::spawn(async move { axum::serve(listener, router()).await });
+    tokio::spawn(async move { axum::serve(listener, router(session(echo))).await });
     addr
 }
 
-async fn connect(addr: SocketAddr, origin: &str) -> Result<Socket, Error> {
+async fn connect(addr: SocketAddr, origin: Option<&[u8]>) -> Result<Socket, Error> {
     let mut request = format!("ws://{addr}/ws")
         .into_client_request()
         .expect("request");
-    let origin = HeaderValue::from_str(origin).expect("origin");
-    request.headers_mut().insert("origin", origin);
+    if let Some(origin) = origin {
+        let origin = HeaderValue::from_bytes(origin).expect("a header value");
+        request.headers_mut().insert("origin", origin);
+    }
     tokio_tungstenite::connect_async(request)
         .await
         .map(|(socket, _)| socket)
 }
 
-async fn receive(socket: &mut Socket) -> ServerMessage {
-    loop {
-        if let Message::Text(text) = socket.next().await.expect("open").expect("frame") {
-            return decode(text.as_str()).expect("a server message");
-        }
-    }
+#[tokio::test]
+async fn text_and_binary_frames_cross_both_ways() {
+    let addr = start().await;
+    let mut socket = connect(addr, Some(format!("http://{addr}").as_bytes()))
+        .await
+        .expect("connect");
+
+    socket.send(Message::text("hi")).await.expect("send");
+    let bytes = vec![0_u8, 1, 2, 255];
+    socket
+        .send(Message::binary(bytes.clone()))
+        .await
+        .expect("send");
+
+    let reply = socket.next().await.expect("open").expect("a frame");
+    assert_eq!(reply, Message::text("hi"));
+    let reply = socket.next().await.expect("open").expect("a frame");
+    assert_eq!(reply, Message::binary(bytes));
 }
 
 #[tokio::test]
-async fn the_socket_takes_its_own_origin_only() {
+async fn a_page_of_another_origin_is_refused() {
     let addr = start().await;
-    let refused = connect(addr, "http://evil.example").await;
+    let refused = connect(addr, Some(b"http://evil.example")).await;
     assert!(
         matches!(refused, Err(Error::Http(response)) if response.status() == StatusCode::FORBIDDEN)
     );
+}
 
-    let mut socket = connect(addr, &format!("http://{addr}"))
-        .await
-        .expect("connect");
-    assert_eq!(receive(&mut socket).await, ServerMessage::Tick { count: 1 });
-    let echo = ClientMessage::Echo { text: "hi".into() };
-    socket
-        .send(Message::text(encode(&echo)))
-        .await
-        .expect("send");
-    loop {
-        match receive(&mut socket).await {
-            ServerMessage::Echo { text } => break assert_eq!(text, "hi"),
-            ServerMessage::Tick { .. } => {}
-        }
-    }
+#[tokio::test]
+async fn a_client_without_a_readable_origin_passes() {
+    let addr = start().await;
+    assert!(connect(addr, None).await.is_ok());
+    assert!(connect(addr, Some(b"\xff")).await.is_ok());
 }

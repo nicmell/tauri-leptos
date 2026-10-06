@@ -6,8 +6,8 @@ Full picture: [docs/architecture.md](docs/architecture.md).
 
 ```
 crates/ui        Leptos app: wasm client (feature hydrate), SSR router and server functions (feature ssr)
-crates/core      the pipe from the page to a session: a web worker and a websocket, or Tauri channels
-crates/protocol  the pipe's messages and their JSON encoding
+crates/core      the pipe from the page to a session: frames over a web worker and a websocket, or over Tauri channels
+crates/protocol  the demo's messages, their JSON encoding and the session that answers them
 crates/app-cli   tauri-leptos-cli: the router plus the site files on --host/--port
 src-tauri        Tauri app: the router behind the plugin's leptos scheme, the pipe commands
 docs/            architecture, per-platform install, template updates
@@ -63,7 +63,7 @@ Then drop the demo and write your own:
 | `greet` in `src-tauri/src/lib.rs` and in `crates/ui/src/tauri_ipc.rs` | add your own commands and their bindings |
 | `crates/ui/public/*.svg` | add your own static files |
 
-The pipe stays, `crates/ui/public/pipe-worker.js` included, but its messages and its session are the demo's. Replace the variants of `ClientMessage` and `ServerMessage` in `crates/protocol/src/lib.rs`. Replace the tick and the echo in `crates/core/src/session.rs`. Then update their tests in `crates/protocol` and `crates/core/tests`.
+The pipe stays, `crates/ui/public/pipe-worker.js` included, but its messages and its session are the demo's. Replace the variants of `ClientMessage` and `ServerMessage` in `crates/protocol/src/lib.rs`. Replace the tick and the echoes in `crates/protocol/src/session.rs`. Then update their tests in `crates/protocol`.
 
 Also run `cargo tauri icon <your.png>` for the icon set, and replace `LICENSE` with your app's.
 
@@ -77,7 +77,7 @@ cargo-generate does not copy symlinks. So in an app made with it, restore `AGENT
 | a server function | any `#[server]` fn in `crates/ui`, served under `/api` |
 | a setting | a field of `AppConfig` in `crates/ui/src/config.rs`, then its value where the cli and the Tauri app build it |
 | a Tauri command or plugin | `src-tauri/src/lib.rs`, with a binding in `crates/ui/src/tauri_ipc.rs` |
-| a message through the pipe | a variant in `crates/protocol/src/lib.rs`, with its answer in `crates/core/src/session.rs` |
+| a message through the pipe | a variant in `crates/protocol/src/lib.rs`, with its answer in `crates/protocol/src/session.rs` |
 | a page that uses the pipe | `tauri_leptos_core::page::Pipe`, as `PipeSection` in `crates/ui/src/demo.rs` uses it |
 | a cli flag | `crates/app-cli/src/main.rs` |
 | styles | `crates/ui/style/main.css` |

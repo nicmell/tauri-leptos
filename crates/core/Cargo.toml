@@ -7,16 +7,18 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-tauri-leptos-protocol.workspace = true
+serde.workspace = true
 axum = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["sync", "time"] }
 log = { workspace = true, optional = true }
+futures-util = { workspace = true, optional = true, features = ["sink"] }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
 console_error_panic_hook = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true, features = [
+  "BinaryType",
   "console",
   "MessageChannel",
   "MessageEvent",
@@ -35,7 +37,7 @@ tokio-tungstenite.workspace = true
 futures-util.workspace = true
 
 [features]
-ssr = ["dep:axum", "dep:tokio", "dep:log"]
+ssr = ["dep:axum", "dep:tokio", "dep:log", "dep:futures-util"]
 hydrate = [
   "dep:wasm-bindgen",
   "dep:wasm-bindgen-futures",
@@ -51,6 +53,10 @@ required-features = ["ssr"]
 
 [[test]]
 name = "pipes"
+required-features = ["ssr"]
+
+[[test]]
+name = "session_end"
 required-features = ["ssr"]
 
 [lints]

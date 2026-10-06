@@ -1,24 +1,22 @@
 //! The web worker at the far end of a browser's pipe: it holds a websocket to
-//! `/ws` on its own origin.
+//! `/ws` on its own origin, and relays frames between it and the page.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tauri_leptos_protocol::{ClientMessage, PipeEvent, ServerMessage, decode, encode};
+use js_sys::{Array, ArrayBuffer, Object, Reflect};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
-use web_sys::{MessageEvent, MessagePort, WebSocket, WorkerGlobalScope};
-
-/// The wait before the worker opens a closed websocket again.
-const REOPEN_AFTER_MS: i32 = 1_000;
+use web_sys::{BinaryType, MessageEvent, MessagePort, WebSocket, WorkerGlobalScope};
 
 /// Runs the worker on `port`, the far end of the page's pipe;
 /// `/pipe-worker.js` calls it.
 #[wasm_bindgen]
 pub fn worker_main(port: MessagePort) {
     console_error_panic_hook::set_once();
-    let scope: WorkerGlobalScope = js_sys::global().unchecked_into();
-    let location = scope.location();
+    let location = js_sys::global()
+        .unchecked_into::<WorkerGlobalScope>()
+        .location();
     let scheme = if location.protocol() == "https:" {
         "wss"
     } else {
@@ -26,17 +24,13 @@ pub fn worker_main(port: MessagePort) {
     };
     let worker = Rc::new(Worker {
         url: format!("{scheme}://{}/ws", location.host()),
-        scope,
         port,
         connection: RefCell::new(None),
     });
     let on_message = {
         let worker = worker.clone();
         Closure::<dyn Fn(MessageEvent)>::new(move |message: MessageEvent| {
-            match message.data().as_string().map(|json| decode(&json)) {
-                Some(Ok(message)) => worker.send(&message),
-                _ => web_sys::console::error_1(&"worker: not a ClientMessage".into()),
-            }
+            worker.from_page(&message.data());
         })
     };
     worker
@@ -48,7 +42,6 @@ pub fn worker_main(port: MessagePort) {
 
 struct Worker {
     url: String,
-    scope: WorkerGlobalScope,
     port: MessagePort,
     connection: RefCell<Option<Connection>>,
 }
@@ -62,50 +55,60 @@ struct Connection {
 }
 
 impl Worker {
-    fn post(&self, event: &PipeEvent) {
-        let _ = self.port.post_message(&encode(event).into());
+    /// A frame for the socket, or the page's request to connect again.
+    fn from_page(self: &Rc<Self>, data: &JsValue) {
+        if let Some(text) = data.as_string() {
+            self.send(|socket| socket.send_with_str(&text));
+        } else if let Some(buffer) = data.dyn_ref::<ArrayBuffer>() {
+            self.send(|socket| socket.send_with_array_buffer(buffer));
+        } else if field(data, "command").as_deref() == Some("connect") {
+            self.open();
+        }
     }
 
-    fn send(&self, message: &ClientMessage) {
+    /// Writes to an open socket; a frame for a closed one is dropped.
+    fn send(&self, write: impl FnOnce(&WebSocket) -> Result<(), JsValue>) {
         if let Some(connection) = self.connection.borrow().as_ref()
             && connection.socket.ready_state() == WebSocket::OPEN
         {
-            let _ = connection.socket.send_with_str(&encode(message));
+            let _ = write(&connection.socket);
         }
     }
 
+    fn post_event(&self, event: &str) {
+        let object = Object::new();
+        let _ = Reflect::set(&object, &"event".into(), &event.into());
+        let _ = self.port.post_message(&object);
+    }
+
     fn open(self: &Rc<Self>) {
-        if let Some(old) = self.connection.borrow_mut().take() {
-            old.socket.set_onopen(None);
-            old.socket.set_onmessage(None);
-            old.socket.set_onclose(None);
-            let _ = old.socket.close();
-        }
+        self.close();
         let Ok(socket) = WebSocket::new(&self.url) else {
-            return self.open_later();
+            self.post_event("disconnected");
+            return;
         };
+        socket.set_binary_type(BinaryType::Arraybuffer);
         let on_open = {
             let worker = self.clone();
-            Closure::<dyn Fn()>::new(move || worker.post(&PipeEvent::Connected))
+            Closure::<dyn Fn()>::new(move || worker.post_event("connected"))
         };
         let on_message = {
             let worker = self.clone();
             Closure::<dyn Fn(MessageEvent)>::new(move |message: MessageEvent| {
-                let decoded = message
-                    .data()
-                    .as_string()
-                    .map(|json| decode::<ServerMessage>(&json));
-                if let Some(Ok(message)) = decoded {
-                    worker.post(&PipeEvent::Received { message });
-                }
+                let data = message.data();
+                // The socket's buffer is fresh, so it moves to the page.
+                let _ = if data.is_instance_of::<ArrayBuffer>() {
+                    worker
+                        .port
+                        .post_message_with_transferable(&data, &Array::of1(&data))
+                } else {
+                    worker.port.post_message(&data)
+                };
             })
         };
         let on_close = {
             let worker = self.clone();
-            Closure::<dyn Fn()>::new(move || {
-                worker.post(&PipeEvent::Disconnected);
-                worker.open_later();
-            })
+            Closure::<dyn Fn()>::new(move || worker.post_event("disconnected"))
         };
         socket.set_onopen(Some(on_open.as_ref().unchecked_ref()));
         socket.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
@@ -118,14 +121,22 @@ impl Worker {
         });
     }
 
-    fn open_later(self: &Rc<Self>) {
-        let worker = self.clone();
-        let open = Closure::once_into_js(move || worker.open());
-        let _ = self
-            .scope
-            .set_timeout_with_callback_and_timeout_and_arguments_0(
-                open.unchecked_ref(),
-                REOPEN_AFTER_MS,
-            );
+    /// Detached first: a replaced socket's late `onclose` would otherwise
+    /// tell the page `disconnected`.
+    fn close(&self) {
+        if let Some(old) = self.connection.borrow_mut().take() {
+            old.socket.set_onopen(None);
+            old.socket.set_onmessage(None);
+            old.socket.set_onclose(None);
+            let _ = old.socket.close();
+        }
     }
+}
+
+/// The string at `name` of an object, if `value` is one.
+fn field(value: &JsValue, name: &str) -> Option<String> {
+    if !value.is_object() {
+        return None;
+    }
+    Reflect::get(value, &name.into()).ok()?.as_string()
 }

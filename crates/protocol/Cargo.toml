@@ -9,6 +9,18 @@ publish.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+tauri-leptos-core = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["sync", "time"] }
+
+[dev-dependencies]
+tokio.workspace = true
+
+[features]
+ssr = ["dep:tauri-leptos-core", "tauri-leptos-core/ssr", "dep:tokio"]
+
+[[test]]
+name = "session"
+required-features = ["ssr"]
 
 [lints]
 workspace = true

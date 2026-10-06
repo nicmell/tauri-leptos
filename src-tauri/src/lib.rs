@@ -1,7 +1,8 @@
-use tauri::ipc::Channel;
+use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, State, Webview, WindowEvent};
 use tauri_leptos_core::pipes::Pipes;
+use tauri_leptos_core::{Frame, PipeEvent};
 use tauri_leptos_ui::config::AppConfig;
 use tauri_plugin_leptos_ssr::LeptosSsrExt;
 
@@ -11,22 +12,41 @@ fn greet(name: &str) -> String {
     format!("Hello, {name}! You've been greeted from Rust!")
 }
 
-/// Opens the page's pipe; `events` carries what its session reports.
+/// Opens the page's pipe; `events` carries what the page hears from it.
 // Tauri hands State and Webview over by value only.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
-fn pipe_open(webview: Webview, events: Channel<String>, pipes: State<'_, Pipes>) -> u32 {
+fn pipe_open(
+    webview: Webview,
+    events: Channel<InvokeResponseBody>,
+    pipes: State<'_, Pipes>,
+) -> u32 {
     pipes.open(webview.label(), move |event| {
-        let _ = events.send(event);
+        let _ = events.send(body(event));
     })
 }
 
-/// Hands `data`, an encoded `ClientMessage`, to the session of pipe `id`.
+/// `event` as the page's end of the pipe reads it: see "The pipe" in
+/// `docs/architecture.md`.
+fn body(event: PipeEvent) -> InvokeResponseBody {
+    match event {
+        PipeEvent::Connected => InvokeResponseBody::Json(r#"{"event":"connected"}"#.to_owned()),
+        PipeEvent::Disconnected => {
+            InvokeResponseBody::Json(r#"{"event":"disconnected"}"#.to_owned())
+        }
+        PipeEvent::Frame(Frame::Text(text)) => InvokeResponseBody::Json(
+            serde_json::to_string(&text).expect("a string serializes to JSON"),
+        ),
+        PipeEvent::Frame(Frame::Binary(bytes)) => InvokeResponseBody::Raw(bytes),
+    }
+}
+
+/// Hands `frame` to the session of pipe `id`.
 // Tauri hands State over by value only.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
-fn pipe_post(id: u32, data: &str, pipes: State<'_, Pipes>) -> Result<(), String> {
-    pipes.post(id, data)
+async fn pipe_post(id: u32, frame: Frame, pipes: State<'_, Pipes>) -> Result<(), String> {
+    pipes.post(id, frame).await
 }
 
 /// Closes pipe `id`, which ends its session.
@@ -50,7 +70,10 @@ pub fn run() {
         .plugin(tauri_plugin_leptos_ssr::init(|options| {
             tauri_leptos_ui::server::router(options, AppConfig::default())
         }))
-        .manage(Pipes::new(tauri::async_runtime::handle().inner().clone()))
+        .manage(Pipes::new(
+            tauri::async_runtime::handle().inner().clone(),
+            tauri_leptos_protocol::session(),
+        ))
         .invoke_handler(tauri::generate_handler![
             greet, pipe_open, pipe_post, pipe_close
         ])

@@ -17,5 +17,7 @@ pub fn router(options: LeptosOptions, config: AppConfig) -> Router {
             move || shell(options.clone())
         })
         .with_state(options)
-        .merge(tauri_leptos_core::server::router())
+        .merge(tauri_leptos_core::server::router(
+            tauri_leptos_protocol::session(),
+        ))
 }

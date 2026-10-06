@@ -1,10 +1,7 @@
 //! What crosses the pipe.
 
-use serde::{Deserialize, Serialize};
-
 /// One message through the pipe, in either direction.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Frame {
     Text(String),
     Binary(Vec<u8>),

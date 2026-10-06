@@ -9,18 +9,19 @@ crates/ui        the Leptos app. Feature hydrate is the wasm client.
                  Feature ssr adds server::router(options, config): the
                  pages and server functions, without a fallback.
 crates/core      the pipe from the page to a session, transport only:
-                 frames of text or bytes. Feature hydrate holds the
-                 page's end, the Tauri bindings and the web worker.
-                 Feature ssr holds the /ws route and the Tauri app's
-                 pipes, which run the session that the app brings.
+                 frames of text or bytes over a websocket to /ws.
+                 Feature hydrate holds the page's end, the socket on
+                 the page's main thread and the web worker between
+                 them. Feature ssr holds the /ws route, which runs the
+                 session that the app brings.
 crates/protocol  the demo's messages, their JSON encoding, and (feature
                  ssr) the session that answers them.
 crates/app-cli   tauri-leptos-cli: the router plus the site files
                  (ServeDir) on --host/--port. cargo-leptos runs it as
                  the bin-package.
 src-tauri        the Tauri app: tauri-plugin-log, the plugin with the
-                 router, a window on the plugin's URL, the pipe
-                 commands, and the demo command greet.
+                 router, a window on the plugin's URL, and the demo
+                 command greet.
 ```
 
 ## Two hosts, one router
@@ -36,50 +37,47 @@ release  the cli              the router and target/site on --host/--port
                               with the site that Tauri embeds in the app
 ```
 
-The plugin README describes the transport. The `leptos` scheme carries GET and HEAD requests. IPC carries requests with a body and event streams. On Android, the plugin's origin is `http://leptos.localhost`.
+The plugin README describes the transport. The `leptos` scheme carries GET and HEAD requests. IPC carries requests with a body, event streams and websockets. On Android, the plugin's origin is `http://leptos.localhost`.
 
-The Tauri dev build compiles the router but does not run it, because it forwards to the watch. So a change in `crates/ui` needs no new Tauri build, and `.taurignore` keeps `cargo tauri dev` from starting one. The pipes run in the Tauri app, so a change in `crates/core` or `crates/protocol` starts a new Tauri build.
+The Tauri dev build compiles the router but does not run it, because it forwards to the watch, the pipe's websocket included. So a change in `crates/ui`, `crates/core` or `crates/protocol` needs no new Tauri build, and `.taurignore` keeps `cargo tauri dev` from starting one.
 
 ## The pipe
 
-The pipe connects the page to a session, a Rust task that answers the page. It carries frames, text or bytes, in both directions, and it does not read them. The app brings the session: an async function of the page's frames and of the frames that it sends back (`core::session`). The page opens the pipe with `core::page::Pipe::open`, which picks the transport at run time:
+The pipe connects the page to a session, a Rust task that answers the page. It carries frames, text or bytes, in both directions, and it does not read them. The app brings the session: an async function of the page's frames and of the frames that it sends back (`core::session`). `/ws` (`core::server`) runs one session per websocket. The page opens the pipe with `core::page::Pipe::open`, and the same three parts carry it in both hosts:
 
 ```
-the page    Pipe::open checks for window.__TAURI__, which the Tauri app
-            injects (app.withGlobalTauri)
-browser     a module worker from /pipe-worker.js (core::worker) holds a
-            websocket to /ws on the same server (core::server), and the
-            page talks to the worker over a MessagePort
-Tauri app   the page calls the commands pipe_open, pipe_post and
-            pipe_close, and a Tauri channel brings the frames back
-            (core::pipes, in the app)
+page        Pipe::open, on the page's main thread
+worker      a module worker from /pipe-worker.js (core::worker), which
+            relays every value between two MessagePorts
+socket      a websocket to /ws on the page's main thread (core::socket)
+browser     the browser's own websocket, to /ws on the cli
+Tauri app   tauri-plugin-leptos-ssr carries the websocket over IPC: to
+            the router's /ws in process, or to the watch in dev
 both        the app's session answers (the demo's is in crates/protocol)
 ```
 
-On every leg, the type of a JS value says what it is:
+On both ports of the worker, the type of a JS value says what it is:
 
 | JS value | Meaning | Direction |
 | --- | --- | --- |
 | string | a text frame | both ways |
 | `ArrayBuffer` | a binary frame | both ways |
-| `{ event: "connected" }` or `{ event: "disconnected" }` | the far end is reachable, or gone | to the page |
-| `{ command: "connect" }` | connect again | to the worker |
+| `{ event: "connected" }` or `{ event: "disconnected" }` | the socket opened, or it closed | to the page |
+| `{ command: "connect" }` | open a new socket | from the page |
 
 The page hears `PipeEvent::Connected`, `Disconnected` or `Frame`. The demo sends JSON from `crates/protocol` in text frames, and its session echoes each binary frame as it is.
 
-The page picks the transport, because only the page knows where it runs. In `cargo tauri dev`, the window gets its pages from the watch, which is the cli build. So a choice at build time fails there, but the window still has `window.__TAURI__`.
+The socket sits on the main thread, because workers have no Tauri IPC, and the plugin's `WebSocket` class exists only in the page's main frame. The worker sits between the page and the socket in both hosts. In a background window, its timers keep their rate, while timers on the main thread drop to one run per second ([pipe-background.md](pipe-background.md)). So work on a timer can move into the worker without a change to the path.
 
-In a browser, `Pipe::open` starts a module worker from `/pipe-worker.js`, a site file in `crates/ui/public`. That script loads the app's own wasm and calls `worker_main` from `crates/core`. The page hands the worker one end of a `MessageChannel`. A `MessagePort` keeps its messages until its receiver listens, so the pipe needs no handshake while the worker loads. The websocket goes to `/ws` on the cli, so the pipe adds no port. `/ws` refuses a page from another origin with a 403.
+`/pipe-worker.js` is a site file in `crates/ui/public`. It loads the app's own wasm and calls `worker_main` from `crates/core` with the two ports. A `MessagePort` keeps its messages until its receiver listens, so the pipe needs no handshake while the worker loads.
 
-A request to `/ws` without a readable `Origin` passes. A browser always sends one, and any other client can claim whatever it likes, so a demand for one only blocks honest tools. The reader and the writer of the socket are separate tasks. So a reader that waits for room in the session's queue never stops the session's frames from going out.
+The socket's URL is `/ws` on the page's origin: `ws:` for an `http:` page, `wss:` for `https:`, and the page's own scheme otherwise. On macOS, the Tauri app's pages are on `leptos://localhost`, and the plugin takes that URL. The pipe adds no port.
 
-In the Tauri app, the pipe has no worker and no socket. `pipe_open` starts a session and returns the id of the pipe. The Tauri channel that the page passes to `pipe_open` carries text as JSON and bytes as raw data. `pipe_post` hands one frame to the session, and `pipe_close` ends it. The page waits for each call before the next, because Tauri does not promise the order of concurrent commands. [pipe-background.md](pipe-background.md) measures the channel in a background window on macOS.
+`/ws` refuses a page from another origin with a 403. A request without a readable `Origin` passes. A browser always sends one, and any other client can claim whatever it likes, so a demand for one only blocks honest tools. The plugin's socket sends no `Origin`. The reader and the writer of the socket are separate tasks. So a reader that waits for room in the session's queue never stops the session's frames from going out.
 
-The page decides when to connect again. After `Disconnected`, `Pipe::reconnect` asks the worker for a new socket, or opens a new pipe in the Tauri app. That pipe needs a new channel, because Tauri unregisters the callback of a channel when its pipe ends. A frame that the page sends while the pipe is disconnected is dropped. The demo connects again one second after `Disconnected`.
+Only the page connects the pipe again. After `Disconnected`, `Pipe::reconnect` asks for a new socket. A frame that the page sends while the pipe is disconnected is dropped. The demo connects again one second after `Disconnected`.
 
-When the page drops its pipe, the session ends. In a browser, the worker stops and closes its socket. In the Tauri app, the page calls `pipe_close`.
-
-A reload drops nothing. In a browser, the worker ends with its page. But a Tauri channel stays open after its page reloads. The app can still send to it, and the new page logs each message as an unknown callback. So when a page starts to load in a webview, or when its window closes, the app closes the pipes of that webview.
+When the page drops its pipe, the worker stops and the socket closes, so the session ends. In the Tauri app, the plugin also closes the sockets of a webview at two moments: a page starts to load in it, or its window closes.
 
 ## Ports
 

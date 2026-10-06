@@ -1,17 +1,16 @@
 //! The pipe between the page and a session at its far end: frames of text or
-//! bytes, carried by a web worker and a websocket in a browser, and by Tauri
-//! channels in the Tauri app. The app brings the session.
+//! bytes over a websocket to `/ws`, with a web worker between the page and
+//! the socket. In the Tauri app, tauri-plugin-leptos-ssr carries the socket
+//! over IPC. The app brings the session.
 
 mod frame;
 pub mod page;
-#[cfg(feature = "ssr")]
-pub mod pipes;
 #[cfg(feature = "ssr")]
 pub mod server;
 #[cfg(feature = "ssr")]
 mod session;
 #[cfg(feature = "hydrate")]
-pub mod tauri_ipc;
+mod socket;
 #[cfg(feature = "hydrate")]
 pub mod worker;
 
